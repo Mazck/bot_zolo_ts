@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import { setupPayOSWebhook } from './routes/webhook';
 import { setupAPIRoutes } from './routes/api';
-import { applyAuthMiddleware } from './middlewares/auth';
+import applyAuthMiddleware from './middlewares/auth';
 import global from '../global';
 
 // Cổng máy chủ
@@ -41,8 +41,6 @@ export async function setupWebServer() {
         // Thiết lập webhook PayOS
         setupPayOSWebhook(app);
 
-        // Thiết lập API nội bộ (với middleware xác thực)
-        // Apply authentication middleware to the /api path
         app.use('/api', applyAuthMiddleware);
         setupAPIRoutes(app);
 

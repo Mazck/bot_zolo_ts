@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import crypto from 'crypto';
 import global from '../../global';
 
@@ -8,7 +8,7 @@ const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
 /**
  * Middleware xác thực API
  */
-export function applyAuthMiddleware(
+export default function applyAuthMiddleware(
     req: Request,
     res: Response,
     next: NextFunction
