@@ -22,6 +22,9 @@ ZCA Bot là một bot Zalo toàn diện được phát triển bằng TypeScript
 - Tài khoản Zalo có cookie hợp lệ
 - Tài khoản PayOS (cho tính năng thanh toán)
 
+🔒 Bảo mật và tuyên bố từ chối trách nhiệm
+Lưu ý: Việc sử dụng thư viện ZCA-JS và bot này có thể vi phạm điều khoản dịch vụ của Zalo, vì đây là API không chính thức. Sử dụng có thể dẫn đến việc tài khoản Zalo bị vô hiệu hóa. Hãy sử dụng bot có trách nhiệm và tự chịu rủi ro.
+
 ## Cài đặt
 
 1. **Clone repository**:
