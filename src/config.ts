@@ -54,7 +54,7 @@ export const DB_CONFIG = {
     logging: process.env.LOG_LEVEL === 'debug'
 };
 
-// Cấu hình PayOS
+// Cấu hình PayOS - Cập nhật phần này trong src/config.ts
 export const PAYOS_CONFIG = {
     clientId: process.env.PAYOS_CLIENT_ID || '',
     apiKey: process.env.PAYOS_API_KEY || '',
@@ -62,10 +62,22 @@ export const PAYOS_CONFIG = {
     webhookSecret: process.env.PAYOS_WEBHOOK_SECRET || '',
     webhookUrl: process.env.WEBHOOK_URL || '',
 
-    // Tùy chọn nâng cao
+    // Các tùy chọn nâng cao
     cancelUrl: process.env.PAYOS_CANCEL_URL || '',
     returnUrl: process.env.PAYOS_RETURN_URL || '',
-    expiryTime: parseInt(process.env.PAYOS_EXPIRY_TIME || '24') // Giờ
+    expiryTime: parseInt(process.env.PAYOS_EXPIRY_TIME || '24'), // Thời gian hết hạn (giờ)
+
+    // Cấu hình thanh toán
+    currency: process.env.PAYOS_CURRENCY || 'VND',
+    language: process.env.PAYOS_LANGUAGE || 'vn',
+
+    // Cấu hình giao diện (nếu cần)
+    supportedMethods: process.env.PAYOS_SUPPORTED_METHODS || 'all', // 'all', 'wallet', 'atmcard', 'creditcard', 'applepay', 'qr'
+
+    // Cấu hình hóa đơn
+    displayLogo: process.env.PAYOS_DISPLAY_LOGO !== 'false',
+    displayBuyerInfo: process.env.PAYOS_DISPLAY_BUYER_INFO !== 'false',
+    displayLanguage: process.env.PAYOS_DISPLAY_LANGUAGE !== 'false',
 };
 
 // Cấu hình server

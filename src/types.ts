@@ -1,20 +1,27 @@
+/**
+ * File: src/types.ts
+ * Mô tả: Định nghĩa các kiểu dữ liệu sử dụng trong ứng dụng
+ */
+
 import { UserPermission, PackageType } from './config';
 
+// Tham số lệnh
 export interface CommandParams {
-    message: any;
-    args: string[];
-    userId: string;
-    groupId?: string;  // This should be optional with '?'
-    isGroup: boolean;
+    message: any;                   // Tin nhắn gốc
+    args: string[];                 // Các tham số lệnh
+    userId: string;                 // ID người gửi
+    groupId?: string;               // ID nhóm (nếu là tin nhắn nhóm)
+    isGroup: boolean;               // Có phải tin nhắn nhóm không
 }
 
+// Định nghĩa lệnh
 export interface Command {
-    name: string;
-    aliases?: string[];
-    description: string;
-    usage: string;
-    requiredPermission: UserPermission;
-    execute: (params: CommandParams) => Promise<void>;
+    name: string;                   // Tên lệnh
+    aliases?: string[];             // Bí danh lệnh
+    description: string;            // Mô tả lệnh
+    usage: string;                  // Cách sử dụng lệnh
+    requiredPermission: UserPermission;  // Quyền yêu cầu để sử dụng
+    execute: (params: CommandParams) => Promise<void>;  // Hàm thực thi lệnh
 }
 
 // Định nghĩa người dùng
@@ -53,25 +60,6 @@ export interface Package {
     description: string;            // Mô tả gói
 }
 
-// Định nghĩa lệnh
-export interface Command {
-    name: string;                   // Tên lệnh
-    aliases?: string[];             // Bí danh lệnh
-    description: string;            // Mô tả lệnh
-    usage: string;                  // Cách sử dụng lệnh
-    requiredPermission: UserPermission;  // Quyền yêu cầu để sử dụng
-    execute: (params: CommandParams) => Promise<void>;  // Hàm thực thi lệnh
-}
-
-// Tham số lệnh
-export interface CommandParams {
-    message: any;                   // Tin nhắn gốc
-    args: string[];                 // Các tham số lệnh
-    userId: string;                 // ID người gửi
-    groupId?: string;               // ID nhóm (nếu là tin nhắn nhóm)
-    isGroup: boolean;               // Có phải tin nhắn nhóm không
-}
-
 // Định nghĩa PayOS response
 export interface PayOSCreateLinkResponse {
     code: string;
@@ -80,6 +68,7 @@ export interface PayOSCreateLinkResponse {
         checkoutUrl: string;         // URL thanh toán
         qrCode: string;              // Mã QR
         orderId: string;             // Mã đơn hàng
+        paymentLinkId?: string;      // ID link thanh toán (có thể có hoặc không)
     }
 }
 
@@ -88,7 +77,7 @@ export interface PayOSWebhookResponse {
     code: string;
     desc: string;
     data: {
-        reference: string;           // Tham chiếu
+        reference: string;           // ID giao dịch
         orderCode: string;           // Mã đơn hàng
         status: number;              // Trạng thái (1 = thành công)
         amount: number;              // Số tiền
@@ -98,7 +87,25 @@ export interface PayOSWebhookResponse {
         buyerPhone: string;          // SĐT người mua
         description: string;         // Mô tả
         transactionTime: string;     // Thời gian giao dịch
+        paymentMethod?: string;      // Phương thức thanh toán
+        cardNumber?: string;         // 4 số cuối thẻ (nếu có)
+        cardType?: string;           // Loại thẻ (nếu có)
+        extraData?: any;             // Dữ liệu bổ sung
     }
+}
+
+// Cấu hình tạo link thanh toán PayOS
+export interface PayOSCreateLinkRequest {
+    orderCode: string;
+    amount: number;
+    description: string;
+    buyerName?: string;
+    buyerEmail?: string;
+    buyerPhone?: string;
+    cancelUrl?: string;
+    returnUrl?: string;
+    expiredAt?: number;
+    extraData?: any;
 }
 
 // Định nghĩa Command Tracker
@@ -135,4 +142,58 @@ export interface WebhookResponse {
     success: boolean;              // Trạng thái thành công
     message: string;               // Thông báo
     code: number;                  // Mã trạng thái HTTP
+}
+
+// Các định nghĩa cho UI tin nhắn
+export interface MentionObject {
+    pos: number;
+    len: number;
+    uid: string;
+}
+
+export interface StyleObject {
+    start: number;
+    len: number;
+    st: TextStyle;  // Cần định nghĩa enum TextStyle hoặc import từ module thích hợp
+}
+
+export interface MessageOptions {
+    msg: string;
+    mentions?: MentionObject[];
+    styles?: StyleObject[];
+    quote?: any;
+    attachments?: string[];
+    urgency?: string;  // Hoặc sử dụng enum Urgency nếu có
+}
+
+// Định nghĩa enum cho tin nhắn
+export enum TextStyle {
+    Bold = 'bold',
+    Italic = 'italic',
+    Red = 'red',
+    Green = 'green',
+    Blue = 'blue',
+    Underline = 'underline',
+    Strikethrough = 'strikethrough'
+}
+
+export enum Urgency {
+    Normal = 'normal',
+    Important = 'important'
+}
+
+export enum ThreadType {
+    User = 'User',
+    Group = 'Group'
+}
+
+export enum GroupEventType {
+    JOIN = 'join',
+    LEAVE = 'leave',
+    UPDATE = 'update',
+    ADD_ADMIN = 'add_admin',
+    REMOVE_ADMIN = 'remove_admin',
+    REMOVE_MEMBER = 'remove_member',
+    BLOCK_MEMBER = 'block_member',
+    JOIN_REQUEST = 'join_request'
 }

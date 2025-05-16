@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import { setupPayOSWebhook } from './routes/webhook';
 import { setupAPIRoutes } from './routes/api';
-import applyAuthMiddleware from './middlewares/auth';
+import { applyAuthMiddleware } from './middlewares/auth';
 import global from '../global';
 
 // Cổng máy chủ
@@ -41,8 +41,15 @@ export async function setupWebServer() {
         // Thiết lập webhook PayOS
         setupPayOSWebhook(app);
 
-        app.use('/api', applyAuthMiddleware);
-        setupAPIRoutes(app);
+        // Tạo router cho API nội bộ và thêm middleware xác thực
+        const apiRouter = express.Router();
+        apiRouter.use(applyAuthMiddleware);
+
+        // Thiết lập API nội bộ với router đã có middleware
+        setupAPIRoutes(app, apiRouter);
+
+        // Sử dụng router API cho đường dẫn /api
+        app.use('/api', apiRouter);
 
         // Xử lý route không tồn tại
         app.use((req: Request, res: Response) => {
@@ -57,19 +64,12 @@ export async function setupWebServer() {
 
         // Khởi động máy chủ
         return new Promise<void>((resolve, reject) => {
-            const portNumber = typeof PORT === 'string' ? parseInt(PORT) : PORT;
-            app.listen(portNumber, () => {
-                global.logger.info(`Máy chủ web đã khởi động tại cổng ${portNumber}`);
+            app.listen(PORT, () => {
+                global.logger.info(`Máy chủ web đã khởi động tại cổng ${PORT}`);
                 resolve();
-            }).on('error', (err: NodeJS.ErrnoException) => {
-                if (err.code === 'EADDRINUSE') {
-                    // Thử port khác
-                    global.logger.info(`Port ${portNumber} đã được sử dụng, đang thử port ${portNumber + 1}...`);
-                    app.listen(portNumber + 1);
-                } else {
-                    global.logger.error(`Lỗi khởi động máy chủ web: ${err}`);
-                    reject(err);
-                }
+            }).on('error', (err) => {
+                global.logger.error(`Lỗi khởi động máy chủ web: ${err}`);
+                reject(err);
             });
         });
 

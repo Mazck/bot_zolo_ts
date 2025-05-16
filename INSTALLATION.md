@@ -124,23 +124,19 @@ pm2 startup
 pm2 save
 ```
 
-## 6. Thiết lập Webhook URL
+## 6. Thiết lập thanh toán với PayOS
 
-Để sử dụng tính năng thanh toán PayOS, bạn cần thiết lập một URL webhook có thể truy cập từ internet:
+Để kích hoạt tính năng thanh toán, bạn cần có tài khoản PayOS và cấu hình như sau:
 
-1. **Sử dụng tên miền riêng**:
-   - Cấu hình DNS của tên miền để trỏ đến máy chủ của bạn
-   - Thiết lập reverse proxy với Nginx hoặc Apache
-   - Cấu hình SSL với Let's Encrypt
+### Đăng ký tài khoản PayOS
 
-2. **Sử dụng dịch vụ tunneling** (cho phát triển):
-   - Ngrok: `ngrok http 3000`
-   - Cloudflare Tunnel
+1. Truy cập [PayOS.vn](https://payos.vn) và đăng ký tài khoản merchant
+2. Trong dashboard, tạo cổng thanh toán mới cho ứng dụng
+3. Lấy các thông tin Client ID, API Key và Checksum Key từ dashboard
 
-3. **Cập nhật URL webhook** trong file `.env`:
-   ```
-   WEBHOOK_URL="https://your-domain.com/webhook/payos"
-   ```
+### Cấu hình webhook PayOS
+
+1. Trong dashboard PayOS, thiết lập URL webhook:
 
 ## 7. Triển khai với Docker
 

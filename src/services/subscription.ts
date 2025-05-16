@@ -1,3 +1,8 @@
+/**
+ * File: src/services/subscription.ts
+ * Mô tả: Dịch vụ quản lý thuê bao và thanh toán
+ */
+
 import { SUBSCRIPTION_PACKAGES, PackageType } from '../config';
 import { createPayment, updatePaymentStatus } from '../database/models/payment';
 import { activateGroup, deactivateGroup, getExpiredGroups, findGroupById } from '../database/models/group';

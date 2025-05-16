@@ -1,3 +1,8 @@
+/**
+ * File: src/services/payos.ts
+ * Mô tả: Dịch vụ thanh toán qua PayOS.vn
+ */
+
 import axios from 'axios';
 import crypto from 'crypto';
 import { PAYOS_CONFIG } from '../config';

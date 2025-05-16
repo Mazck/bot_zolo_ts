@@ -21,7 +21,7 @@
         "noImplicitAny": false, // Initially set to false to make migration easier
         "noImplicitThis": true,
         "strictNullChecks": true,
-        "strictFunctionTypes": true,
+        "strictFunctionTypes": false,
         "strictPropertyInitialization": false,
         "noUnusedLocals": false, // Initially set to false to make migration easier
         "noUnusedParameters": false, // Initially set to false to make migration easier

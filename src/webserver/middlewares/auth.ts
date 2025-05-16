@@ -1,4 +1,9 @@
-import { Request, Response, NextFunction, RequestHandler } from 'express';
+/**
+ * File: src/webserver/middlewares/auth.ts
+ * Mô tả: Middleware xác thực cho API nội bộ
+ */
+
+import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import global from '../../global';
 
@@ -8,11 +13,11 @@ const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
 /**
  * Middleware xác thực API
  */
-export default function applyAuthMiddleware(
+export function applyAuthMiddleware(
     req: Request,
     res: Response,
     next: NextFunction
-): void | Response<any, Record<string, any>> {
+): void {
     try {
         // Lấy API key từ header
         const apiKey = req.headers['x-api-key'] as string;
@@ -20,14 +25,15 @@ export default function applyAuthMiddleware(
         // Kiểm tra API key
         if (!apiKey || apiKey !== API_KEY) {
             global.logger.warn(`Truy cập API với API key không hợp lệ: ${req.ip}`);
-            return res.status(401).json({ error: 'Không có quyền truy cập' });
+            res.status(401).json({ error: 'Không có quyền truy cập' });
+            return;
         }
 
         // Cho phép truy cập nếu API key hợp lệ
         next();
     } catch (error) {
         global.logger.error(`Lỗi xác thực API: ${error}`);
-        return res.status(500).json({ error: 'Lỗi xác thực' });
+        res.status(500).json({ error: 'Lỗi xác thực' });
     }
 }
 
