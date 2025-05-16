@@ -32,6 +32,7 @@
     "author": "",
     "license": "MIT",
     "dependencies": {
+        "@payos/node": "^1.0.10",
         "axios": "^1.9.0",
         "body-parser": "^2.2.0",
         "crypto": "^1.0.1",
