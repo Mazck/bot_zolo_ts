@@ -1,8 +1,3 @@
-/**
- * File: src/auth/login.ts
- * Mô tả: Xử lý đăng nhập Zalo
- */
-
 import { Zalo } from 'zca-js';
 import fs from 'fs';
 import path from 'path';
@@ -20,7 +15,7 @@ export async function loginWithCookie(): Promise<ZaloAPI> {
         const zalo = new Zalo({
             selfListen: false, // không lắng nghe sự kiện của bản thân
             checkUpdate: true, // kiểm tra cập nhật
-            logging: true      // bật log của thư viện
+            logging: false      // bật log của thư viện
         });
 
         // Kiểm tra cookie từ file hoặc biến môi trường
@@ -56,10 +51,12 @@ export async function loginWithCookie(): Promise<ZaloAPI> {
 
         const api = await zalo.login(loginOptions);
 
-        global.logger.info('Đăng nhập thành công!');
-
         // Convert to our ZaloAPI interface using unknown as an intermediate step
         const apiWithId = api as unknown as ZaloAPI;
+
+        const data = await apiWithId.getUserInfo(apiWithId.getOwnId())
+        const userId = Object.keys(data.changed_profiles)[0];
+        global.logger.info(`Đăng nhập thành công vào tài khoản ${data.changed_profiles[userId].zaloName}`);
 
         // Manually add the missing id property if not present
         if (!apiWithId.id && (api as any).id) {

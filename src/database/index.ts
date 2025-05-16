@@ -1,8 +1,3 @@
-/**
- * File: src/database/index.ts
- * Mô tả: Khởi tạo và quản lý kết nối cơ sở dữ liệu
- */
-
 import { createConnection, Connection, ConnectionOptions } from 'typeorm';
 import { DB_CONFIG } from '../config';
 import { UserEntity } from './models/user';

@@ -1,9 +1,3 @@
-/**
- * File: src/config.ts
- * Mô tả: Cấu hình cho ứng dụng ZCA bot
- */
-
-// Import thư viện
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';

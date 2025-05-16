@@ -1,8 +1,3 @@
-/**
- * File: src/middlewares/commandMiddleware.ts
- * Mô tả: Middleware tổng hợp xử lý các kiểm tra trước khi thực thi lệnh
- */
-
 import { activationCheck } from './activationCheck';
 import { permissionCheck } from './permissionCheck';
 import { antiSpamCheck } from './antiSpam';

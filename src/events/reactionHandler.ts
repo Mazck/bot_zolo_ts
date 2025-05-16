@@ -1,8 +1,3 @@
-/**
- * File: src/events/reactionHandler.ts
- * Mô tả: Xử lý sự kiện reaction (thả cảm xúc)
- */
-
 import global from '../global';
 
 /**

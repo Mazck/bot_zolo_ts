@@ -1,8 +1,3 @@
-/**
- * File: src/webserver/routes/webhook.ts
- * Mô tả: Xử lý webhook từ PayOS
- */
-
 import { Express, Request, Response } from 'express';
 import { Router } from 'express';
 import { verifyWebhookChecksum, processWebhookData, getPaymentStatusDescription } from '../../services/payos';

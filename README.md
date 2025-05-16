@@ -29,7 +29,7 @@ Lưu ý: Việc sử dụng thư viện ZCA-JS và bot này có thể vi phạm 
 
 1. **Clone repository**:
 ```bash
-git clone https://github.com/yourusername/zca-bot.git
+git clone https://github.com/Mazck/bot_zolo_ts.git
 cd zca-bot
 ```
 
@@ -197,6 +197,6 @@ tail -f logs/combined.log
 
 ## Liên hệ và hỗ trợ
 
-- Email: youremail@example.com
+- Email: datnguyenthanh106@gmail.com
 - Github: github.com/yourusername/zca-bot
-- Zalo: zalo.me/yourzaloid
+- Zalo: zalo.me/1234567890

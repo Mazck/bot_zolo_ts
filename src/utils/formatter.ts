@@ -1,4 +1,4 @@
-import { TextStyle } from '../types/index'; // Import from our types file
+import { TextStyle } from '../types/index';
 import { sendTextMessage, sendStyledMessage } from './messageHelper';
 
 // === FORMATTERS (ĐỊNH DẠNG NỘI DUNG) ===

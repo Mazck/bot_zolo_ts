@@ -1,8 +1,3 @@
-/**
- * File: src/middlewares/activationCheck.ts
- * Mô tả: Kiểm tra trạng thái kích hoạt của nhóm
- */
-
 import { findGroupById } from '../database/models/group';
 import global from '../global';
 

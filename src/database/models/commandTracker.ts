@@ -1,8 +1,3 @@
-/**
- * File: src/database/models/commandTracker.ts
- * Mô tả: Model và hàm xử lý theo dõi lệnh (chống spam)
- */
-
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 import { LessThan, MoreThanOrEqual } from 'typeorm'; // Import TypeORM operators
 import global from '../../global';

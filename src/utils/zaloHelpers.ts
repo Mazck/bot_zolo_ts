@@ -1,5 +1,3 @@
-// src/utils/zaloHelpers.ts
-
 import global from '../global';
 
 /**

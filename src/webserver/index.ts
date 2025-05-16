@@ -1,8 +1,3 @@
-/**
- * File: src/webserver/index.ts
- * Mô tả: Thiết lập máy chủ web để xử lý webhook và API nội bộ
- */
-
 import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import { setupPayOSWebhook } from './routes/webhook';

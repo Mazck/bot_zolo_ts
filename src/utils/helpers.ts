@@ -1,4 +1,3 @@
-// src/utils/helpers.ts
 import crypto from 'crypto';
 import { Command } from '../types';
 import global from '../global';

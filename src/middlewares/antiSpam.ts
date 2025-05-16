@@ -1,8 +1,3 @@
-/**
- * File: src/middlewares/antiSpam.ts
- * Mô tả: Chống spam lệnh, giới hạn tần suất sử dụng lệnh
- */
-
 import { addCommandUsage, isUserSpamming } from '../database/models/commandTracker';
 import global from '../global';
 

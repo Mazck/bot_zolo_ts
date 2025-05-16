@@ -1,8 +1,3 @@
-/**
- * File: src/middlewares/permissionCheck.ts
- * Mô tả: Kiểm tra quyền của người dùng
- */
-
 import { UserPermission } from '../config';
 import { findUserById } from '../database/models/user';
 import { ADMIN_IDS } from '../config';

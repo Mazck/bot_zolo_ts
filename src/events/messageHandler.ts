@@ -1,8 +1,3 @@
-/**
- * File: src/events/messageHandler.ts
- * Mô tả: Xử lý sự kiện tin nhắn
- */
-
 import { createOrUpdateUser } from '../database/models/user';
 import { createOrUpdateGroup } from '../database/models/group';
 import { BOT_CONFIG } from '../config';

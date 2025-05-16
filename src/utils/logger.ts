@@ -1,8 +1,3 @@
-/**
- * File: src/utils/logger.ts
- * Mô tả: Hệ thống ghi log cho ứng dụng
- */
-
 import winston from 'winston';
 import path from 'path';
 import fs from 'fs';

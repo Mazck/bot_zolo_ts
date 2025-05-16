@@ -1,8 +1,3 @@
-/**
- * File: src/webserver/routes/api.ts
- * Mô tả: Thiết lập các API nội bộ
- */
-
 import { Express, Request, Response } from 'express';
 import { Router } from 'express'; // Import Router
 import { findAllGroups, findGroupById } from '../../database/models/group';

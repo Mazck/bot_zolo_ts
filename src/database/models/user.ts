@@ -1,8 +1,3 @@
-/**
- * File: src/database/models/user.ts
- * Mô tả: Model và các hàm xử lý người dùng
- */
-
 import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { UserPermission } from '../../config';
 import global from '../../global';

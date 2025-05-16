@@ -1,8 +1,3 @@
-/**
- * File: src/events/groupHandler.ts
- * Mô tả: Xử lý sự kiện nhóm
- */
-
 import { GroupEventType } from 'zca-js';
 import { createOrUpdateUser } from '../database/models/user';
 import { createOrUpdateGroup } from '../database/models/group';

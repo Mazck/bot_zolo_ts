@@ -1,8 +1,3 @@
-/**
- * File: src/events/handler.ts
- * Mô tả: Quản lý và thiết lập tất cả các trình lắng nghe sự kiện
- */
-
 import { setupMessageListener } from './messageHandler';
 import { setupGroupEventListener } from './groupHandler';
 import { setupReactionListener } from './reactionHandler';

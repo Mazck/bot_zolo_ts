@@ -1,9 +1,3 @@
-/**
- * File: src/types.d.ts
- * Mô tả: Type definitions for ZCA-JS library
- * Based on documentation: https://tdung.gitbook.io/zca-js
- */
-
 declare module 'zca-js' {
     export class Zalo {
         constructor(options?: ZaloOptions);

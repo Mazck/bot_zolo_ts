@@ -1,8 +1,3 @@
-/**
- * File: src/types.ts
- * Mô tả: Định nghĩa các kiểu dữ liệu sử dụng trong ứng dụng
- */
-
 import { UserPermission, PackageType } from './config';
 
 export interface CommandParams {

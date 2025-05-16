@@ -1,10 +1,3 @@
-/**
- * File: scripts/backup.js
- * Mô tả: Script sao lưu dữ liệu
- * 
- * Sử dụng: node scripts/backup.js
- */
-
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');

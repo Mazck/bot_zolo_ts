@@ -1,11 +1,3 @@
-/**
- * File: scripts/restore.js
- * Mô tả: Script khôi phục dữ liệu từ bản sao lưu
- * 
- * Sử dụng: node scripts/restore.js [tên_file_sao_lưu]
- * Nếu không chỉ định tên file, sẽ khôi phục bản sao lưu mới nhất
- */
-
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');

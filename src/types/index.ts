@@ -1,9 +1,3 @@
-/**
- * File: src/types/index.ts 
- * Mô tả: Type definitions for the application
- */
-
-// Command related types
 export interface Command {
     name: string;
     aliases?: string[];

@@ -1,8 +1,3 @@
-/**
- * File: src/database/models/payment.ts
- * Mô tả: Model và các hàm xử lý thanh toán
- */
-
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { PackageType } from '../../config';
 import global from '../../global';

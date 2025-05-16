@@ -1,4 +1,3 @@
-// In src/global.ts
 import { Logger } from 'winston';
 import { Connection } from 'typeorm';
 import { createLogger } from './utils/logger';
