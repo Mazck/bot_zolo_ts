@@ -35,15 +35,17 @@ export const BOT_CONFIG = {
     userAgent: process.env.BOT_USER_AGENT || '',
     cookiePath: process.env.BOT_COOKIE_PATH || path.join(process.cwd(), 'cookie.json'),
 
+    // Remove or rename these properties if they're not supported by zca-js
+    // Instead of saveCredentials, use something like:
+    shouldSaveCredentials: process.env.BOT_SAVE_CREDENTIALS !== 'false',
+    // Instead of credentialsPath, use something like:
+    credentialsSavePath: process.env.BOT_CREDENTIALS_PATH || path.join(process.cwd(), 'credentials.json'),
+
     // Các tùy chọn nâng cao
     selfListen: process.env.BOT_SELF_LISTEN === 'true' || false,
     checkUpdate: process.env.BOT_CHECK_UPDATE !== 'false',
     autoReconnect: process.env.BOT_AUTO_RECONNECT !== 'false',
-    logging: process.env.BOT_LOGGING !== 'false',
-
-    // Tùy chọn ghi nhớ
-    saveCredentials: process.env.BOT_SAVE_CREDENTIALS !== 'false',
-    credentialsPath: process.env.BOT_CREDENTIALS_PATH || path.join(process.cwd(), 'credentials.json')
+    logging: process.env.BOT_LOGGING !== 'false'
 };
 
 // Cấu hình cơ sở dữ liệu

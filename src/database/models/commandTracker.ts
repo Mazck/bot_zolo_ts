@@ -4,6 +4,7 @@
  */
 
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
+import { LessThan, MoreThanOrEqual } from 'typeorm'; // Import TypeORM operators
 import global from '../../global';
 
 @Entity('command_usage')
@@ -75,7 +76,7 @@ export async function isUserSpamming(
         const count = await commandUsageRepo.count({
             where: {
                 userId,
-                usedAt: { gte: timeWindowStart }
+                usedAt: MoreThanOrEqual(timeWindowStart)
             }
         });
 
@@ -86,7 +87,7 @@ export async function isUserSpamming(
             const cooldownViolations = await commandUsageRepo.count({
                 where: {
                     userId,
-                    usedAt: { gte: cooldownStart }
+                    usedAt: MoreThanOrEqual(cooldownStart)
                 }
             });
 
@@ -120,7 +121,7 @@ export async function cleanupOldCommandUsage(olderThan: number = 24 * 60 * 60 * 
 
         // Xóa các bản ghi cũ
         const result = await commandUsageRepo.delete({
-            usedAt: { lt: cutoffDate }
+            usedAt: LessThan(cutoffDate)
         });
 
         global.logger.info(`Đã xóa ${result.affected || 0} bản ghi lịch sử lệnh cũ`);

@@ -5,6 +5,23 @@
 
 import { UserPermission, PackageType } from './config';
 
+export interface CommandParams {
+    message: any;
+    args: string[];
+    userId: string;
+    groupId?: string;  // This should be optional with '?'
+    isGroup: boolean;
+}
+
+export interface Command {
+    name: string;
+    aliases?: string[];
+    description: string;
+    usage: string;
+    requiredPermission: UserPermission;
+    execute: (params: CommandParams) => Promise<void>;
+}
+
 // Định nghĩa người dùng
 export interface User {
     id: string;                     // ID Zalo của người dùng

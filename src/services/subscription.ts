@@ -1,12 +1,12 @@
 /**
  * File: src/services/subscription.ts
- * Mô tả: Dịch vụ quản lý thuê bao và gia hạn
+ * Mô tả: Dịch vụ quản lý thuê bao và thanh toán
  */
 
 import { SUBSCRIPTION_PACKAGES, PackageType } from '../config';
 import { createPayment, updatePaymentStatus } from '../database/models/payment';
-import { activateGroup, deactivateGroup, getExpiredGroups } from '../database/models/group';
-import { createPaymentLink } from './payos';
+import { activateGroup, deactivateGroup, getExpiredGroups, findGroupById } from '../database/models/group';
+import { createPaymentLink, generateOrderCode } from './payos';
 import { sendTextMessage } from '../utils/messageHelper';
 import { Package } from '../types';
 import global from '../global';
@@ -21,7 +21,7 @@ import global from '../global';
 export async function initializeSubscription(
     userId: string,
     groupId: string,
-    packageType: string
+    packageType: PackageType
 ): Promise<{ paymentId: string; paymentLink: string; qrCode: string }> {
     try {
         // Kiểm tra gói có tồn tại không
@@ -31,16 +31,22 @@ export async function initializeSubscription(
 
         const packageInfo = SUBSCRIPTION_PACKAGES[packageType] as Package;
 
+        // Kiểm tra thông tin nhóm
+        const group = await findGroupById(groupId);
+
+        if (!group) {
+            throw new Error('Không tìm thấy thông tin nhóm');
+        }
+
         // Tạo mã đơn hàng
-        const uniqueId = Math.random().toString(36).substring(2, 8);
-        const orderCode = `ZCABOT-${Date.now()}-${uniqueId}`;
+        const orderCode = generateOrderCode();
 
         // Tạo thanh toán trong DB
         const payment = await createPayment(
             userId,
             groupId,
             packageInfo.price,
-            packageType as PackageType,
+            packageType,
             orderCode
         );
 
@@ -48,15 +54,20 @@ export async function initializeSubscription(
             throw new Error('Không thể tạo thanh toán trong cơ sở dữ liệu');
         }
 
-        // Mô tả thanh toán
-        const description = `Thuê bot ZCA - ${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${groupId}`;
+        // Chuẩn bị mô tả thanh toán
+        const isExtend = group.isActive;
+        const actionText = isExtend ? "Gia hạn bot" : "Thuê bot";
+        const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${group.name}`;
 
-        // Tạo link thanh toán từ PayOS
+        // Tạo link thanh toán qua PayOS
         const paymentLinkResponse = await createPaymentLink(
             packageInfo.price,
             orderCode,
             description
         );
+
+        // Ghi log thông tin tạo thanh toán
+        global.logger.info(`Đã tạo thanh toán: ${packageType}, Số tiền: ${packageInfo.price}, Order: ${orderCode}`);
 
         // Trả về thông tin thanh toán
         return {
@@ -93,7 +104,7 @@ export async function processSuccessfulPayment(
         }
 
         // Lấy thông tin gói
-        const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType as PackageType];
+        const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType];
 
         if (!packageInfo) {
             throw new Error(`Không tìm thấy thông tin gói: ${payment.packageType}`);
@@ -108,16 +119,21 @@ export async function processSuccessfulPayment(
 
         // Gửi thông báo
         if (global.bot) {
-            const message = `🎉 KÍCH HOẠT THÀNH CÔNG!\n\n` +
-                `✅ Nhóm đã được kích hoạt với gói ${packageInfo.name}.\n` +
+            const isExtended = activatedGroup.activatedAt && (new Date().getTime() - activatedGroup.activatedAt.getTime() > 3600000);
+            const actionText = isExtended ? "GIA HẠN" : "KÍCH HOẠT";
+
+            const message = `🎉 ${actionText} THÀNH CÔNG!\n\n` +
+                `✅ Nhóm đã được ${isExtended ? "gia hạn" : "kích hoạt"} với gói ${packageInfo.name}.\n` +
                 `✅ Thời hạn: ${packageInfo.days} ngày\n` +
                 `✅ Hết hạn: ${activatedGroup.expiresAt?.toLocaleString('vi-VN')}\n\n` +
+                `💰 Số tiền: ${packageInfo.price.toLocaleString('vi-VN')}đ\n` +
+                `🧾 Mã giao dịch: ${transactionId}\n\n` +
                 `Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
 
             await sendTextMessage(message, payment.groupId, true);
         }
 
-        global.logger.info(`Kích hoạt nhóm ${payment.groupId} thành công với gói ${payment.packageType}`);
+        global.logger.info(`Đã kích hoạt nhóm ${payment.groupId} thành công với gói ${payment.packageType}`);
         return true;
     } catch (error) {
         global.logger.error(`Lỗi xử lý thanh toán: ${error}`);
@@ -184,6 +200,9 @@ export async function sendExpirationReminders(daysBeforeExpiration: number = 3):
         const groupRepository = global.db.getRepository('groups');
         const now = new Date();
 
+        // Import for TypeORM operators
+        const { Between } = require('typeorm');
+
         // Tính ngày hết hạn trong khoảng cần nhắc nhở
         const startDate = new Date(now);
         startDate.setDate(now.getDate() + daysBeforeExpiration - 1);
@@ -195,9 +214,7 @@ export async function sendExpirationReminders(daysBeforeExpiration: number = 3):
         const groups = await groupRepository.find({
             where: {
                 isActive: true,
-                expiresAt: {
-                    between: [startDate, endDate]
-                }
+                expiresAt: Between(startDate, endDate)
             }
         });
 

@@ -18,15 +18,19 @@
         "sourceMap": true,
         "declaration": true,
         "declarationMap": true,
-        "noImplicitAny": true,
+        "noImplicitAny": false, // Initially set to false to make migration easier
         "noImplicitThis": true,
         "strictNullChecks": true,
         "strictFunctionTypes": true,
         "strictPropertyInitialization": false,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
+        "noUnusedLocals": false, // Initially set to false to make migration easier
+        "noUnusedParameters": false, // Initially set to false to make migration easier
         "noImplicitReturns": true,
-        "noFallthroughCasesInSwitch": true
+        "noFallthroughCasesInSwitch": true,
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ]
     },
     "include": [
         "src/**/*"

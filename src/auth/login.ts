@@ -8,12 +8,13 @@ import fs from 'fs';
 import path from 'path';
 import global from '../global';
 import { BOT_CONFIG } from '../config';
+import { ZaloAPI } from '../global'; // Import the interface from global
 
 /**
  * Đăng nhập vào Zalo bằng cookie
  * @returns API Zalo đã xác thực
  */
-export async function loginWithCookie() {
+export async function loginWithCookie(): Promise<ZaloAPI> {
     try {
         // Khởi tạo đối tượng Zalo với các tùy chọn
         const zalo = new Zalo({
@@ -43,17 +44,32 @@ export async function loginWithCookie() {
             throw new Error('Không tìm thấy cookie. Vui lòng cung cấp cookie trong file cookie.json hoặc biến môi trường BOT_COOKIE');
         }
 
-        // Đăng nhập với cookie
+        // Đăng nhập với cookie - remove unsupported properties
         global.logger.info('Đang đăng nhập bằng cookie...');
 
-        const api = await zalo.login({
+        const loginOptions = {
             cookie: cookie,
             imei: BOT_CONFIG.imei || '00000000-0000-0000-0000-000000000000',
             userAgent: BOT_CONFIG.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        });
+            // Remove saveCredentials and credentialsPath
+        };
+
+        const api = await zalo.login(loginOptions);
 
         global.logger.info('Đăng nhập thành công!');
-        return api;
+
+        // Convert to our ZaloAPI interface using unknown as an intermediate step
+        const apiWithId = api as unknown as ZaloAPI;
+
+        // Manually add the missing id property if not present
+        if (!apiWithId.id && (api as any).id) {
+            apiWithId.id = (api as any).id;
+        } else if (!apiWithId.id) {
+            // If id is not available at all, generate a placeholder
+            apiWithId.id = `zalo-api-${Date.now()}`;
+        }
+
+        return apiWithId;
     } catch (error) {
         global.logger.error('Lỗi đăng nhập:', error);
         throw error;

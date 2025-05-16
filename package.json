@@ -14,7 +14,11 @@
         "restore": "node scripts/restore.js",
         "docker:build": "docker-compose build",
         "docker:up": "docker-compose up -d",
-        "docker:down": "docker-compose down"
+        "docker:down": "docker-compose down",
+        "typecheck": "tsc --noEmit",
+        "typecheck:watch": "tsc --noEmit --watch",
+        "build:safe": "npm run typecheck && npm run build",
+        "fix:unused": "tsc --noEmit --findUnusedParameters"
     },
     "keywords": [
         "zalo",

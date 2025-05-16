@@ -1,6 +1,6 @@
 /**
  * File: src/services/payos.ts
- * Mô tả: Dịch vụ thanh toán qua PayOS
+ * Mô tả: Dịch vụ thanh toán qua PayOS.vn
  */
 
 import axios from 'axios';
@@ -9,13 +9,16 @@ import { PAYOS_CONFIG } from '../config';
 import { PayOSCreateLinkResponse, PayOSWebhookResponse } from '../types';
 import global from '../global';
 
+// Base URL của PayOS API
+const PAYOS_API_BASE_URL = 'https://api-merchant.payos.vn/v2';
+
 /**
  * Tạo chuỗi checksum cho PayOS
  * @param data Dữ liệu cần tạo checksum
  * @returns Chuỗi checksum
  */
 function createChecksum(data: any): string {
-    const jsonData = JSON.stringify(data);
+    const jsonData = typeof data === 'string' ? data : JSON.stringify(data);
     return crypto
         .createHmac('sha256', PAYOS_CONFIG.checksumKey)
         .update(jsonData)
@@ -35,33 +38,43 @@ export function verifyWebhookChecksum(data: any, checksumFromHeader: string): bo
 
 /**
  * Tạo link thanh toán PayOS
- * @param amount Số tiền thanh toán
+ * @param amount Số tiền thanh toán (VND)
  * @param orderCode Mã đơn hàng
  * @param description Mô tả đơn hàng
- * @param cancelUrl URL hủy thanh toán (tùy chọn)
- * @param returnUrl URL trả về sau thanh toán (tùy chọn)
+ * @param buyerName Tên người mua (không bắt buộc)
+ * @param buyerEmail Email người mua (không bắt buộc)
+ * @param buyerPhone SĐT người mua (không bắt buộc)
+ * @param cancelUrl URL hủy thanh toán (không bắt buộc)
+ * @param returnUrl URL trả về sau thanh toán (không bắt buộc)
  * @returns Thông tin link thanh toán
  */
 export async function createPaymentLink(
     amount: number,
     orderCode: string,
     description: string,
+    buyerName?: string,
+    buyerEmail?: string,
+    buyerPhone?: string,
     cancelUrl?: string,
     returnUrl?: string
 ): Promise<PayOSCreateLinkResponse> {
     try {
-        const apiUrl = 'https://api-merchant.payos.vn/v2/payment-requests';
+        const apiUrl = `${PAYOS_API_BASE_URL}/payment-requests`;
 
-        // Thời gian hết hạn mặc định: 24 giờ
-        const defaultExpireTime = Math.floor(Date.now() / 1000) + 24 * 60 * 60;
+        // Thời gian hết hạn: 24 giờ mặc định hoặc từ cấu hình
+        const expiryHours = PAYOS_CONFIG.expiryTime || 24;
+        const defaultExpireTime = Math.floor(Date.now() / 1000) + expiryHours * 60 * 60;
 
         // Dữ liệu thanh toán
         const data = {
             orderCode,
             amount,
             description,
-            cancelUrl: cancelUrl || PAYOS_CONFIG.webhookUrl + '/payment/cancel',
-            returnUrl: returnUrl || PAYOS_CONFIG.webhookUrl + '/payment/callback',
+            buyerName: buyerName || '',
+            buyerEmail: buyerEmail || '',
+            buyerPhone: buyerPhone || '',
+            cancelUrl: cancelUrl || PAYOS_CONFIG.cancelUrl || `${PAYOS_CONFIG.webhookUrl}/payment/cancel`,
+            returnUrl: returnUrl || PAYOS_CONFIG.returnUrl || `${PAYOS_CONFIG.webhookUrl}/payment/callback`,
             expiredAt: defaultExpireTime
         };
 
@@ -78,6 +91,12 @@ export async function createPaymentLink(
             }
         });
 
+        // Kiểm tra phản hồi từ PayOS
+        if (response.data.code !== '00') {
+            throw new Error(`PayOS API Error: ${response.data.desc}`);
+        }
+
+        global.logger.info(`Đã tạo link thanh toán PayOS thành công cho đơn hàng: ${orderCode}`);
         return response.data;
     } catch (error) {
         global.logger.error(`Lỗi tạo link thanh toán PayOS: ${error}`);
@@ -92,7 +111,7 @@ export async function createPaymentLink(
  */
 export async function checkPaymentStatus(orderCode: string): Promise<any> {
     try {
-        const apiUrl = `https://api-merchant.payos.vn/v2/payment-requests/${orderCode}`;
+        const apiUrl = `${PAYOS_API_BASE_URL}/payment-requests/${orderCode}`;
 
         const response = await axios.get(apiUrl, {
             headers: {
@@ -101,6 +120,11 @@ export async function checkPaymentStatus(orderCode: string): Promise<any> {
                 'Content-Type': 'application/json'
             }
         });
+
+        // Kiểm tra phản hồi từ PayOS
+        if (response.data.code !== '00') {
+            throw new Error(`PayOS API Error: ${response.data.desc}`);
+        }
 
         return response.data;
     } catch (error) {
@@ -139,7 +163,7 @@ export function processWebhookData(webhookData: any): PayOSWebhookResponse {
 }
 
 /**
- * Xử lý các mã trạng thái PayOS
+ * Lấy mô tả trạng thái thanh toán PayOS
  * @param statusCode Mã trạng thái
  * @returns Mô tả trạng thái
  */
@@ -162,4 +186,15 @@ export function getPaymentStatusDescription(statusCode: number): string {
         default:
             return 'Trạng thái không xác định';
     }
+}
+
+/**
+ * Tạo mã đơn hàng duy nhất cho PayOS
+ * @param prefix Tiền tố cho mã đơn hàng
+ * @returns Mã đơn hàng duy nhất
+ */
+export function generateOrderCode(prefix: string = 'ZCABOT'): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `${prefix}-${timestamp}-${random}`;
 }

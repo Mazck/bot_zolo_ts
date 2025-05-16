@@ -1,9 +1,5 @@
-/**
- * File: src/database/models/group.ts
- * Mô tả: Model và các hàm xử lý nhóm
- */
-
 import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { LessThan } from 'typeorm'; // Import the operator here
 import global from '../../global';
 
 @Entity('groups')
@@ -180,7 +176,7 @@ export async function getExpiredGroups(): Promise<GroupEntity[]> {
         return await groupRepository.find({
             where: {
                 isActive: true,
-                expiresAt: { lessThan: now }
+                expiresAt: LessThan(now)
             }
         });
     } catch (error) {

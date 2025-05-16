@@ -3,7 +3,8 @@
  * Mô tả: Thiết lập các API nội bộ
  */
 
-import { Express } from 'express';
+import { Express, Request, Response } from 'express';
+import { Router } from 'express'; // Import Router
 import { findAllGroups, findGroupById } from '../../database/models/group';
 import { findAllUsers, findUserById } from '../../database/models/user';
 import { findAllPayments } from '../../database/models/payment';
@@ -15,12 +16,13 @@ import global from '../../global';
  * @param app Express app instance
  */
 export function setupAPIRoutes(app: Express) {
-    const router = app.router;
+    // Create a router instance instead of using app.router
+    const router = Router();
 
     // API endpoints
 
     // Lấy thông tin bot
-    app.get('/api/bot/info', async (req, res) => {
+    router.get('/bot/info', async (req: Request, res: Response) => {
         try {
             if (!global.bot) {
                 return res.status(503).json({ error: 'Bot chưa được khởi tạo' });
@@ -42,7 +44,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy danh sách nhóm
-    app.get('/api/groups', async (req, res) => {
+    router.get('/groups', async (req: Request, res: Response) => {
         try {
             const groups = await findAllGroups();
             return res.json({ groups });
@@ -53,7 +55,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy thông tin nhóm cụ thể
-    app.get('/api/groups/:id', async (req, res) => {
+    router.get('/groups/:id', async (req: Request, res: Response) => {
         try {
             const group = await findGroupById(req.params.id);
 
@@ -69,7 +71,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy danh sách người dùng
-    app.get('/api/users', async (req, res) => {
+    router.get('/users', async (req: Request, res: Response) => {
         try {
             const users = await findAllUsers();
             return res.json({ users });
@@ -80,7 +82,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy thông tin người dùng cụ thể
-    app.get('/api/users/:id', async (req, res) => {
+    router.get('/users/:id', async (req: Request, res: Response) => {
         try {
             const user = await findUserById(req.params.id);
 
@@ -96,7 +98,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy danh sách thanh toán
-    app.get('/api/payments', async (req, res) => {
+    router.get('/payments', async (req: Request, res: Response) => {
         try {
             const payments = await findAllPayments();
             return res.json({ payments });
@@ -107,7 +109,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy thông tin gói dịch vụ
-    app.get('/api/packages', (req, res) => {
+    router.get('/packages', (req: Request, res: Response) => {
         try {
             return res.json({ packages: SUBSCRIPTION_PACKAGES });
         } catch (error) {
@@ -117,7 +119,7 @@ export function setupAPIRoutes(app: Express) {
     });
 
     // Lấy thống kê
-    app.get('/api/stats', async (req, res) => {
+    router.get('/stats', async (req: Request, res: Response) => {
         try {
             const groups = await findAllGroups();
             const users = await findAllUsers();
@@ -142,4 +144,7 @@ export function setupAPIRoutes(app: Express) {
             return res.status(500).json({ error: 'Lỗi máy chủ' });
         }
     });
+
+    // Use the router with the app
+    app.use('/api', router);
 }

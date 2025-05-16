@@ -25,8 +25,14 @@ export function setupGroupEventListener() {
 
             // Cập nhật thông tin nhóm
             try {
-                const groupInfo = await global.bot.getGroupInfo(groupId);
-                await createOrUpdateGroup(groupId, groupInfo.name);
+                // Check that global.bot is still available
+                if (global.bot) {
+                    const groupInfo = await global.bot.getGroupInfo(groupId);
+                    await createOrUpdateGroup(groupId, groupInfo.name);
+                } else {
+                    global.logger.error('Bot not available when trying to update group info');
+                    return;
+                }
             } catch (error) {
                 global.logger.error(`Lỗi cập nhật thông tin nhóm: ${error}`);
             }
@@ -84,6 +90,12 @@ export function setupGroupEventListener() {
  */
 async function handleJoinEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleJoinEvent');
+            return;
+        }
+
         for (const userId of data.data.userIDs) {
             // Kiểm tra nếu người tham gia là bot
             if (global.bot.id === userId) {
@@ -120,6 +132,12 @@ async function handleJoinEvent(data, groupId) {
  */
 async function handleLeaveEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleLeaveEvent');
+            return;
+        }
+
         for (const userId of data.data.userIDs) {
             // Lấy thông tin người dùng
             const userInfo = await global.bot.getUserInfo(userId);
@@ -141,6 +159,12 @@ async function handleLeaveEvent(data, groupId) {
  */
 async function handleUpdateEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleUpdateEvent');
+            return;
+        }
+
         // Kiểm tra nếu là cập nhật tên nhóm
         if (data.data.update_type === 'name') {
             // Cập nhật tên nhóm trong DB
@@ -172,6 +196,12 @@ async function handleUpdateEvent(data, groupId) {
  */
 async function handleAddAdminEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleAddAdminEvent');
+            return;
+        }
+
         const userInfo = await global.bot.getUserInfo(data.data.userID);
         if (data.data.adminType === 1) { // Trưởng nhóm
             await sendTextMessage(
@@ -200,6 +230,12 @@ async function handleAddAdminEvent(data, groupId) {
  */
 async function handleRemoveAdminEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleRemoveAdminEvent');
+            return;
+        }
+
         const userInfo = await global.bot.getUserInfo(data.data.userID);
         await sendTextMessage(
             `👋 ${userInfo.displayName} đã bị gỡ quyền phó nhóm.`,
@@ -220,6 +256,12 @@ async function handleRemoveAdminEvent(data, groupId) {
  */
 async function handleRemoveMemberEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleRemoveMemberEvent');
+            return;
+        }
+
         for (const userId of data.data.userIDs) {
             const userInfo = await global.bot.getUserInfo(userId);
             await sendTextMessage(
@@ -238,6 +280,12 @@ async function handleRemoveMemberEvent(data, groupId) {
  */
 async function handleBlockMemberEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleBlockMemberEvent');
+            return;
+        }
+
         const userInfo = await global.bot.getUserInfo(data.data.userID);
         await sendTextMessage(
             `🔒 ${userInfo.displayName} đã bị chặn khỏi nhóm.`,
@@ -254,6 +302,12 @@ async function handleBlockMemberEvent(data, groupId) {
  */
 async function handleJoinRequestEvent(data, groupId) {
     try {
+        // Check if bot is available
+        if (!global.bot) {
+            global.logger.error('Bot not available in handleJoinRequestEvent');
+            return;
+        }
+
         const userInfo = await global.bot.getUserInfo(data.data.userID);
 
         // Thông báo cho quản trị viên nhóm

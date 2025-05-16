@@ -12,11 +12,12 @@ const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
 
 /**
  * Middleware xác thực API
- * @param req Request
- * @param res Response
- * @param next NextFunction
  */
-export function applyAuthMiddleware(req: Request, res: Response, next: NextFunction) {
+export function applyAuthMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): void | Response<any, Record<string, any>> {
     try {
         // Lấy API key từ header
         const apiKey = req.headers['x-api-key'] as string;

@@ -1,10 +1,5 @@
-/**
- * File: src/utils/formatter.ts
- * Mô tả: Các hàm định dạng tin nhắn
- */
-
-import { TextStyle } from 'zca-js';
-import { sendTextMessage, sendStyledMessage } from './message-helper';
+import { TextStyle } from '../types/index'; // Import from our types file
+import { sendTextMessage, sendStyledMessage } from './messageHelper';
 
 // === FORMATTERS (ĐỊNH DẠNG NỘI DUNG) ===
 

@@ -1,9 +1,4 @@
-/**
- * File: src/utils/messageHelper.ts
- * Mô tả: Các hàm hỗ trợ gửi tin nhắn
- */
-
-import { ThreadType, TextStyle, Urgency } from 'zca-js';
+import { ThreadType, TextStyle, Urgency, StyleObject, MentionObject } from '../types/index'; // Import interfaces
 import { formatNotification, formatError, formatSuccess } from './formatter';
 import global from '../global';
 
@@ -86,7 +81,8 @@ export async function sendMentionMessage(
     try {
         // Tạo nội dung tin nhắn với đề cập
         let messageText = content;
-        const mentionObjects = [];
+        // Explicitly type the array
+        const mentionObjects: MentionObject[] = [];
         let lastPos = messageText.length;
 
         // Thêm đề cập vào cuối nếu không có trong nội dung
@@ -119,6 +115,11 @@ export async function sendMentionMessage(
                     uid: mention.userId
                 });
             }
+        }
+
+        if (!global.bot) {
+            global.logger.error('Bot is null when sending mention message');
+            return null;
         }
 
         return await global.bot.sendMessage(
@@ -183,7 +184,8 @@ export async function sendStyledMessage(
     if (!global.bot) return null;
 
     try {
-        const styleObjects = styles.map(style => ({
+        // Convert to StyleObject array
+        const styleObjects: StyleObject[] = styles.map(style => ({
             start: style.start,
             len: style.len,
             st: style.style

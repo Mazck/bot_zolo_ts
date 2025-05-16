@@ -36,8 +36,13 @@ export function setupMessageListener() {
 
             // Cập nhật thông tin người dùng
             try {
-                const userInfo = await global.bot.getUserInfo(userId);
-                await createOrUpdateUser(userId, userInfo.displayName);
+                // Add null check for global.bot
+                if (global.bot) {
+                    const userInfo = await global.bot.getUserInfo(userId);
+                    await createOrUpdateUser(userId, userInfo.displayName);
+                } else {
+                    global.logger.error('Bot is null when trying to get user info');
+                }
             } catch (error) {
                 global.logger.error(`Lỗi cập nhật thông tin người dùng: ${error}`);
             }
@@ -45,8 +50,13 @@ export function setupMessageListener() {
             // Cập nhật thông tin nhóm nếu tin nhắn từ nhóm
             if (isGroup && groupId) {
                 try {
-                    const groupInfo = await global.bot.getGroupInfo(groupId);
-                    await createOrUpdateGroup(groupId, groupInfo.name);
+                    // Add null check for global.bot
+                    if (global.bot) {
+                        const groupInfo = await global.bot.getGroupInfo(groupId);
+                        await createOrUpdateGroup(groupId, groupInfo.name);
+                    } else {
+                        global.logger.error('Bot is null when trying to get group info');
+                    }
                 } catch (error) {
                     global.logger.error(`Lỗi cập nhật thông tin nhóm: ${error}`);
                 }

@@ -4,11 +4,13 @@
  */
 
 import helpCommand from './help';
-import rentCommand from './rent';
-import extendCommand from './extend';
-import statusCommand from './status';
-import groupinfoCommand from './groupinfo';
+// import rentCommand from './rent';
+// import extendCommand from './extend';
+// import statusCommand from './status';
+// import groupinfoCommand from './groupinfo';
 import global from '../global';
+import { Command } from '../types'; // Import the Command interface
+import { UserPermission } from '../config'; // Import UserPermission enum
 
 /**
  * Đăng ký các lệnh cho bot
@@ -16,16 +18,16 @@ import global from '../global';
 export function registerCommands() {
     // Khởi tạo Map để lưu trữ lệnh
     if (!global.commands) {
-        global.commands = new Map();
+        global.commands = new Map<string, Command>(); // Add type to the Map
     }
 
     // Danh sách các lệnh
     const commands = [
         helpCommand,
-        rentCommand,
-        extendCommand,
-        statusCommand,
-        groupinfoCommand
+        // rentCommand,
+        // extendCommand,
+        // statusCommand,
+        // groupinfoCommand
         // Thêm lệnh mới ở đây
     ];
 
@@ -45,7 +47,7 @@ export function registerCommands() {
  * @param commandName Tên lệnh hoặc bí danh
  * @returns Thông tin lệnh hoặc null nếu không tìm thấy
  */
-export function getCommand(commandName) {
+export function getCommand(commandName: string): Command | null {
     if (!commandName || !global.commands) return null;
 
     // Chuẩn hóa tên lệnh
@@ -64,14 +66,15 @@ export function getCommand(commandName) {
         }
     }
 
-    return command;
+    // Return null if command is undefined
+    return command || null;
 }
 
 /**
  * Lấy danh sách tất cả các lệnh
  * @returns Mảng các lệnh
  */
-export function getAllCommands() {
+export function getAllCommands(): Command[] {
     if (!global.commands) return [];
 
     return Array.from(global.commands.values());
@@ -82,20 +85,20 @@ export function getAllCommands() {
  * @param permission Quyền người dùng
  * @returns Mảng các lệnh có quyền tương ứng
  */
-export function getCommandsByPermission(permission) {
+export function getCommandsByPermission(permission: UserPermission): Command[] {
     if (!global.commands) return [];
 
     return Array.from(global.commands.values())
         .filter(cmd => {
             // Nếu là admin, hiển thị tất cả
-            if (permission === 'admin') return true;
+            if (permission === UserPermission.ADMIN) return true;
 
             // Nếu là manager, hiển thị lệnh manager và user
-            if (permission === 'manager') {
-                return cmd.requiredPermission === 'manager' || cmd.requiredPermission === 'user';
+            if (permission === UserPermission.MANAGER) {
+                return cmd.requiredPermission === UserPermission.MANAGER || cmd.requiredPermission === UserPermission.USER;
             }
 
             // Nếu là user, chỉ hiển thị lệnh user
-            return cmd.requiredPermission === 'user';
+            return cmd.requiredPermission === UserPermission.USER;
         });
 }

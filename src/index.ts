@@ -1,8 +1,3 @@
-/**
- * File: src/index.ts
- * Mô tả: Entry point của ứng dụng
- */
-
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import path from 'path';
@@ -29,7 +24,7 @@ async function initializeBot() {
     try {
         // Đăng nhập với cookie
         const api = await loginWithCookie();
-        global.logger.info(`Bot đã đăng nhập thành công với ID: ${api.id}`);
+        global.logger.info(`Bot đã khởi động thành công với ID: ${api.id}`);
         return api;
     } catch (error) {
         throw new Error(`Khởi tạo bot thất bại: ${error}`);
@@ -93,7 +88,7 @@ function setupCronTasks() {
         global.logger.info('Đang sao lưu cơ sở dữ liệu...');
         try {
             const { exec } = require('child_process');
-            exec('node scripts/backup.js', (error, stdout, stderr) => {
+            exec('node scripts/backup.js', (error: Error | null, _stdout: string, _stderr: string) => {
                 if (error) {
                     global.logger.error(`Lỗi sao lưu cơ sở dữ liệu: ${error}`);
                     return;
@@ -128,12 +123,12 @@ function setupShutdownHandler() {
     });
 
     // Bắt lỗi không xử lý
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', (error: Error) => {
         global.logger.error(`Lỗi không xử lý: ${error.stack}`);
     });
 
     // Bắt promise bị từ chối mà không xử lý
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason: any, _promise: Promise<any>) => {
         global.logger.error(`Promise bị từ chối mà không xử lý: ${reason}`);
     });
 }

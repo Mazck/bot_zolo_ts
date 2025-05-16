@@ -3,7 +3,7 @@
  * Mô tả: Thiết lập máy chủ web để xử lý webhook và API nội bộ
  */
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import { setupPayOSWebhook } from './routes/webhook';
 import { setupAPIRoutes } from './routes/api';
@@ -25,7 +25,7 @@ export async function setupWebServer() {
         app.use(bodyParser.urlencoded({ extended: true }));
 
         // Middleware bảo mật cơ bản
-        app.use((req, res, next) => {
+        app.use((req: Request, res: Response, next: NextFunction) => {
             // Thêm các header bảo mật
             res.setHeader('X-Content-Type-Options', 'nosniff');
             res.setHeader('X-Frame-Options', 'DENY');
@@ -34,12 +34,12 @@ export async function setupWebServer() {
         });
 
         // Thiết lập route chính
-        app.get('/', (req, res) => {
+        app.get('/', (req: Request, res: Response) => {
             res.status(200).json({ status: 'ok', message: 'ZCA Bot API is running' });
         });
 
         // Thiết lập route kiểm tra sức khỏe
-        app.get('/health', (req, res) => {
+        app.get('/health', (req: Request, res: Response) => {
             res.status(200).json({ status: 'ok', uptime: process.uptime() });
         });
 
@@ -47,16 +47,17 @@ export async function setupWebServer() {
         setupPayOSWebhook(app);
 
         // Thiết lập API nội bộ (với middleware xác thực)
+        // Apply authentication middleware to the /api path
         app.use('/api', applyAuthMiddleware);
         setupAPIRoutes(app);
 
         // Xử lý route không tồn tại
-        app.use((req, res) => {
+        app.use((req: Request, res: Response) => {
             res.status(404).json({ error: 'Route not found' });
         });
 
         // Xử lý lỗi
-        app.use((err, req, res, next) => {
+        app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
             global.logger.error(`Error in web server: ${err}`);
             res.status(500).json({ error: 'Server error' });
         });

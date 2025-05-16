@@ -1,9 +1,9 @@
-// src/database/migrations/run.ts
 import { createConnection } from 'typeorm';
 import { DB_CONFIG } from '../../config';
 import { UserEntity } from '../models/user';
 import { GroupEntity } from '../models/group';
 import { PaymentEntity } from '../models/payment';
+import { CommandUsage } from '../models/commandTracker';
 import global from '../../global';
 import { createLogger } from '../../utils/logger';
 
@@ -19,7 +19,7 @@ async function runMigrations(): Promise<void> {
         const connectionOptions = {
             ...DB_CONFIG,
             type: DB_CONFIG.type as 'sqlite' | 'mysql',
-            entities: [UserEntity, GroupEntity, PaymentEntity],
+            entities: [UserEntity, GroupEntity, PaymentEntity, CommandUsage],
             synchronize: true, // Chỉ dùng trong phát triển, không dùng trong sản xuất
         };
 
