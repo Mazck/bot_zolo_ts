@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  zca-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zca-bot
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      - ./.env:/app/.env
+      - ./cookie.json:/app/cookie.json
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Ho_Chi_Minh
+    networks:
+      - zca-network
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    container_name: zca-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    volumes:
+      - zca-db-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - TZ=Asia/Ho_Chi_Minh
+    networks:
+      - zca-network
+    command: --default-authentication-plugin=mysql_native_password
+
+  adminer:
+    image: adminer
+    container_name: zca-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - zca-network
+    depends_on:
+      - db
+
+networks:
+  zca-network:
+    driver: bridge
+
+volumes:
+  zca-db-data:

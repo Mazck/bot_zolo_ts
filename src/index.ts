@@ -1,171 +1,213 @@
-import './bootstrap';
-import { ZaloLoginHandler } from './includes/handlers/loginHandler';
-import { MessageHandler } from './includes/handlers/messageHandler';
-import { CommandHandler } from './includes/handlers/handlerCommands';
-import { SuperLogger } from './utils/logger';
-import { fileHandler } from './utils/fileHandler';
-import Database from './includes/dataBase/models';
+/**
+ * File: src/index.ts
+ * Mô tả: Entry point của ứng dụng
+ */
+
+import dotenv from 'dotenv';
+import cron from 'node-cron';
 import path from 'path';
+import fs from 'fs';
+import { initializeDatabase, closeDatabase } from './database';
+import { loginWithCookie } from './auth/login';
+import { setupEventListeners } from './events/handler';
+import { registerCommands } from './commands';
+import { setupWebServer } from './webserver';
+import { checkExpiredGroups, sendExpirationReminders } from './services/subscription';
+import { cleanupOldCommandUsage } from './database/models/commandTracker';
+import global from './global';
 
-class ZaloBot {
-    private api: any;
-    private messageHandler!: MessageHandler;
-    private commandHandler!: CommandHandler;
-    private dataBase!: Database;
-    private log = new SuperLogger({
-        appName: 'BOT ZALO',
-        version: '1.0.0',
-        developer: 'NTDat',
-        logLevel: 'info',
-        showTimestamp: true,
-        showLogLevel: true,
-        colorized: true,
-        outputFile: 'logs/app.log',
-        gradientColors: ['#FF416C', '#FF4B2B']
-    });;
+// Tải biến môi trường trước khi thực hiện bất kỳ hành động nào
+dotenv.config();
 
-    /**
-     * Khởi tạo bot
-     */
-    constructor() {
+// Đảm bảo các thư mục cần thiết tồn tại
+ensureDirectoriesExist();
 
-    }
-
-    async loadCommands() {
-        try {
-            const commandsDir = path.join(__dirname, 'commands');
-            const commandFiles = await fileHandler.getFiles(commandsDir, '.ts');
-
-            if (!commandFiles.length) {
-                this.log.warn(
-                    `Không tìm thấy lệnh nào trong thư mục ${commandsDir}`
-                );
-                return;
-            }
-
-            for (let i = 0; i < commandFiles.length; i++) {
-                const file = commandFiles[i];
-                try {
-                    await import(file);
-                } catch (error) {
-                    this.log.error(`❌ Lỗi khi tải file lệnh: ${path.basename(file)}\n`);
-                }
-            }
-        } catch (error) {
-            this.log.error('❌ Lỗi khi tải các lệnh:');
-            this.log.glitchText('COMMAND LOADING FAILED', {
-                duration: 3000,
-                colors: ['#ff0000', '#ff00ff', '#ffffff']
-            });
-        }
-    }
-
-
-    /**
-     * Khởi động bot
-     */
-    async start(): Promise<void> {
-        try {
-            await this.log.init(true);
-            const loginHandler = new ZaloLoginHandler();
-            this.api = await loginHandler.login();
-            this.dataBase = new Database();
-            this.dataBase.init();
-
-            const spinner = this.log.spinner({
-                text: 'Đang tải...',
-                color: 'cyan',
-                spinner: 'dots' // dots, dots2, line, arrow3, bounce, star, clock, earth, hearts...
-            });
-            spinner.start();
-
-            spinner.succeed(
-                `Đăng nhập thành công vào tài khoản ${this.api.listener.ctx.uid}`
-            );
-            this.dataBase.syncData(this.api)
-
-            // Khởi tạo các handler
-            this.messageHandler = new MessageHandler(this.api);
-            this.commandHandler = new CommandHandler(this.messageHandler, "!");
-
-            this.loadCommands()
-
-            // Gắn handler vào API để sử dụng trong lệnh
-            this.api.messageHandler = this.messageHandler;
-            this.api.commandHandler = this.commandHandler;
-
-            // Thiết lập listener
-            this.setupListeners();
-        } catch (error) {
-            this.log.error('Lỗi khi khởi động bot:');
-            process.exit(1);
-        }
-    }
-
-    /**
-     * Thiết lập các listener
-     */
-    private setupListeners(): void {
-        // Listener cho tin nhắn
-        this.api.listener.on('message', async (message: any) => {
-            try {
-                const { data, threadId, type } = message;
-                const fromId = data.uidFrom
-                const isGroup = type === 1;
-                this.api.getUserInfo(message.data.uidFrom).then(console.log)
-
-                await this.dataBase.processMessage(fromId, isGroup ? threadId : null)
-
-                // Xử lý lệnh
-                const command = await this.commandHandler.handleMessage(message);
-
-
-            } catch (error) {
-                this.log.error(`Lỗi khi xử lý tin nhắn`);
-                throw error;
-            }
-        });
-
-        // Listener cho sự kiện reaction
-        this.api.listener.on('reaction', async (reaction: any) => {
-            try {
-                //this.log.debug('Nhận được reaction:', reaction);
-                // Xử lý reaction ở đây
-            } catch (error) {
-                this.log.error('Lỗi khi xử lý reaction:');
-            }
-        });
-
-        // Listener cho sự kiện nhóm
-        this.api.listener.on('group_event', async (event: any) => {
-            try {
-                // this.log.debug('Nhận được sự kiện nhóm:', event);
-                // Xử lý sự kiện nhóm ở đây
-            } catch (error) {
-                this.log.error('Lỗi khi xử lý sự kiện nhóm:');
-            }
-        });
+/**
+ * Khởi tạo và cấu hình bot
+ */
+async function initializeBot() {
+    try {
+        // Đăng nhập với cookie
+        const api = await loginWithCookie();
+        global.logger.info(`Bot đã đăng nhập thành công với ID: ${api.id}`);
+        return api;
+    } catch (error) {
+        throw new Error(`Khởi tạo bot thất bại: ${error}`);
     }
 }
 
-// Khởi động bot
-const bot = new ZaloBot();
-bot.start().catch(async (_error) => {
-    process.exit(1);
-});
+/**
+ * Đảm bảo các thư mục cần thiết tồn tại
+ */
+function ensureDirectoriesExist() {
+    const dirs = [
+        'logs',
+        'backups'
+    ];
 
-// Xử lý tắt ứng dụng
-process.on('SIGINT', async () => {
-    process.exit(0);
-});
+    for (const dir of dirs) {
+        const dirPath = path.join(process.cwd(), dir);
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+            global.logger.info(`Đã tạo thư mục: ${dir}`);
+        }
+    }
+}
 
-process.on('SIGTERM', async () => {
-    process.exit(0);
-});
+/**
+ * Thiết lập các tác vụ định kỳ
+ */
+function setupCronTasks() {
+    // Kiểm tra nhóm hết hạn mỗi giờ
+    cron.schedule('0 * * * *', async () => {
+        global.logger.info('Đang chạy kiểm tra nhóm hết hạn...');
+        try {
+            await checkExpiredGroups();
+        } catch (error) {
+            global.logger.error(`Lỗi kiểm tra nhóm hết hạn: ${error}`);
+        }
+    });
 
-// Xử lý lỗi không bắt được
-process.on('uncaughtException', (error) => {
-});
+    // Gửi thông báo nhắc nhở gia hạn mỗi ngày lúc 8 giờ sáng
+    cron.schedule('0 8 * * *', async () => {
+        global.logger.info('Đang gửi thông báo nhắc nhở gia hạn...');
+        try {
+            await sendExpirationReminders(3); // Nhắc nhở trước 3 ngày
+        } catch (error) {
+            global.logger.error(`Lỗi gửi thông báo nhắc nhở gia hạn: ${error}`);
+        }
+    });
 
-process.on('unhandledRejection', (reason, promise) => {
-});
+    // Dọn dẹp dữ liệu lệnh cũ mỗi 6 giờ
+    cron.schedule('0 */6 * * *', async () => {
+        global.logger.info('Đang chạy dọn dẹp dữ liệu lệnh cũ...');
+        try {
+            await cleanupOldCommandUsage(24 * 60 * 60 * 1000); // Xóa dữ liệu cũ hơn 24 giờ
+        } catch (error) {
+            global.logger.error(`Lỗi dọn dẹp dữ liệu lệnh cũ: ${error}`);
+        }
+    });
+
+    // Sao lưu cơ sở dữ liệu hàng ngày lúc 0 giờ
+    cron.schedule('0 0 * * *', () => {
+        global.logger.info('Đang sao lưu cơ sở dữ liệu...');
+        try {
+            const { exec } = require('child_process');
+            exec('node scripts/backup.js', (error, stdout, stderr) => {
+                if (error) {
+                    global.logger.error(`Lỗi sao lưu cơ sở dữ liệu: ${error}`);
+                    return;
+                }
+                global.logger.info('Sao lưu cơ sở dữ liệu thành công');
+            });
+        } catch (error) {
+            global.logger.error(`Lỗi sao lưu cơ sở dữ liệu: ${error}`);
+        }
+    });
+
+    global.logger.info('Đã thiết lập tác vụ định kỳ');
+}
+
+/**
+ * Xử lý tắt ứng dụng
+ */
+function setupShutdownHandler() {
+    // Bắt sự kiện khi ứng dụng bị tắt
+    process.on('SIGINT', async () => {
+        global.logger.info('Đang tắt ứng dụng...');
+        try {
+            // Đóng kết nối cơ sở dữ liệu nếu đang mở
+            await closeDatabase();
+
+            // Các tác vụ dọn dẹp khác nếu cần
+            global.logger.info('Đã tắt ứng dụng an toàn');
+        } catch (error) {
+            global.logger.error(`Lỗi khi tắt ứng dụng: ${error}`);
+        }
+        process.exit(0);
+    });
+
+    // Bắt lỗi không xử lý
+    process.on('uncaughtException', (error) => {
+        global.logger.error(`Lỗi không xử lý: ${error.stack}`);
+    });
+
+    // Bắt promise bị từ chối mà không xử lý
+    process.on('unhandledRejection', (reason, promise) => {
+        global.logger.error(`Promise bị từ chối mà không xử lý: ${reason}`);
+    });
+}
+
+/**
+ * Hàm khởi động ứng dụng
+ */
+async function startApplication() {
+    try {
+        const startTime = Date.now();
+        global.logger.info('Đang khởi động ứng dụng...');
+
+        // Khởi tạo cơ sở dữ liệu
+        global.logger.info('Đang kết nối cơ sở dữ liệu...');
+        await initializeDatabase();
+        global.logger.info('Kết nối cơ sở dữ liệu thành công');
+
+        // Khởi tạo bot
+        global.logger.info('Đang khởi tạo bot...');
+        global.bot = await initializeBot();
+        global.logger.info(`Bot đã khởi động với ID: ${global.bot.id}`);
+
+        // Đăng ký lệnh
+        global.logger.info('Đang đăng ký lệnh...');
+        const commandCount = registerCommands();
+        global.logger.info(`Đã đăng ký ${commandCount} lệnh`);
+
+        // Thiết lập các trình lắng nghe sự kiện
+        global.logger.info('Đang thiết lập trình lắng nghe sự kiện...');
+        setupEventListeners();
+
+        // Thiết lập tác vụ định kỳ
+        global.logger.info('Đang thiết lập tác vụ định kỳ...');
+        setupCronTasks();
+
+        // Thiết lập máy chủ webhook
+        global.logger.info('Đang khởi động máy chủ webhook...');
+        await setupWebServer();
+
+        // Thiết lập xử lý tắt ứng dụng
+        setupShutdownHandler();
+
+        const bootTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        global.logger.info(`Ứng dụng đã khởi động thành công trong ${bootTime}s`);
+
+        // Hiển thị logo và thông tin phiên bản
+        displayLogo();
+
+    } catch (error) {
+        global.logger.error(`Lỗi khởi động ứng dụng: ${error}`);
+        process.exit(1);
+    }
+}
+
+/**
+ * Hiển thị logo và thông tin phiên bản
+ */
+function displayLogo() {
+    // Đọc thông tin phiên bản từ package.json
+    const packageJson = require('../package.json');
+
+    console.log(`
+  ███████╗ ██████╗ █████╗     ██████╗  ██████╗ ████████╗
+  ╚══███╔╝██╔════╝██╔══██╗    ██╔══██╗██╔═══██╗╚══██╔══╝
+    ███╔╝ ██║     ███████║    ██████╔╝██║   ██║   ██║   
+   ███╔╝  ██║     ██╔══██║    ██╔══██╗██║   ██║   ██║   
+  ███████╗╚██████╗██║  ██║    ██████╔╝╚██████╔╝   ██║   
+  ╚══════╝ ╚═════╝╚═╝  ╚═╝    ╚═════╝  ╚═════╝    ╚═╝   
+  
+  ZCA Bot v${packageJson.version} - Bot Zalo toàn diện
+  Node.js: ${process.version}
+  Thời gian: ${new Date().toLocaleString('vi-VN')}
+  `);
+}
+
+// Khởi động ứng dụng
+startApplication();

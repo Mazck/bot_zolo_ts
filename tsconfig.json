@@ -1,14 +1,5 @@
 {
     "compilerOptions": {
-        "esModuleInterop": true,
-        "allowSyntheticDefaultImports": true,
-        "moduleResolution": "node",
-        "typeRoots": [
-            "./node_modules/@types",
-            "./src/includes/types"
-        ],
-        "strict": true,
-        "useUnknownInCatchVariables": true,
         "target": "ES2020",
         "module": "commonjs",
         "lib": [
@@ -16,19 +7,32 @@
         ],
         "outDir": "./dist",
         "rootDir": "./src",
+        "strict": true,
+        "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "moduleResolution": "node",
+        "sourceMap": true,
         "declaration": true,
-        "sourceMap": true
+        "declarationMap": true,
+        "noImplicitAny": true,
+        "noImplicitThis": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictPropertyInitialization": false,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true
     },
     "include": [
-        "src/**/*",
-        "./src/includes/types/global.d.ts"
+        "src/**/*"
     ],
     "exclude": [
         "node_modules",
-        "dist",
-        "**/*.test.ts"
+        "dist"
     ]
 }
