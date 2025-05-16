@@ -59,12 +59,19 @@ export async function setupWebServer() {
 
         // Khởi động máy chủ
         return new Promise<void>((resolve, reject) => {
-            app.listen(PORT, () => {
-                global.logger.info(`Máy chủ web đã khởi động tại cổng ${PORT}`);
+            const portNumber = typeof PORT === 'string' ? parseInt(PORT) : PORT;
+            app.listen(portNumber, () => {
+                global.logger.info(`Máy chủ web đã khởi động tại cổng ${portNumber}`);
                 resolve();
-            }).on('error', (err) => {
-                global.logger.error(`Lỗi khởi động máy chủ web: ${err}`);
-                reject(err);
+            }).on('error', (err: NodeJS.ErrnoException) => {
+                if (err.code === 'EADDRINUSE') {
+                    // Thử port khác
+                    global.logger.info(`Port ${portNumber} đã được sử dụng, đang thử port ${portNumber + 1}...`);
+                    app.listen(portNumber + 1);
+                } else {
+                    global.logger.error(`Lỗi khởi động máy chủ web: ${err}`);
+                    reject(err);
+                }
             });
         });
 
