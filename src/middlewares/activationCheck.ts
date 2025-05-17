@@ -1,46 +1,46 @@
-import { findGroupById } from '../database/models/group';
+import { groupService } from '../database/services';
 import global from '../global';
 
 /**
- * Kiểm tra nhóm đã kích hoạt hay chưa
+ * Checks if a group is activated
  * 
- * @param groupId ID nhóm cần kiểm tra
- * @returns true nếu nhóm đã kích hoạt và còn hạn, false nếu chưa kích hoạt hoặc hết hạn
+ * @param groupId ID of the group to check
+ * @returns true if group is activated and not expired, false otherwise
  */
-export async function activationCheck(groupId) {
+export async function activationCheck(groupId: string): Promise<boolean> {
     try {
-        // Nếu không phải nhóm hoặc không có ID nhóm
+        // If no group ID provided, allow (for direct messages)
         if (!groupId) {
-            return true; // Luôn cho phép trong tin nhắn cá nhân
+            return true;
         }
 
-        // Tìm thông tin nhóm trong cơ sở dữ liệu
-        const group = await findGroupById(groupId);
+        // Find group in database
+        const group = await groupService().findGroupById(groupId);
 
-        // Nếu không tìm thấy nhóm
+        // If group not found in database
         if (!group) {
-            global.logger.info(`Không tìm thấy thông tin nhóm ${groupId} trong cơ sở dữ liệu`);
+            global.logger.info(`Group ${groupId} not found in database`);
             return false;
         }
 
-        // Kiểm tra trạng thái kích hoạt
+        // Check activation status
         if (!group.isActive) {
-            global.logger.info(`Nhóm ${groupId} chưa được kích hoạt`);
+            global.logger.info(`Group ${groupId} is not activated`);
             return false;
         }
 
-        // Kiểm tra thời hạn
+        // Check if expired
         const now = new Date();
         if (group.expiresAt && group.expiresAt < now) {
-            global.logger.info(`Nhóm ${groupId} đã hết hạn vào ${group.expiresAt}`);
+            global.logger.info(`Group ${groupId} subscription expired on ${group.expiresAt}`);
             return false;
         }
 
-        // Nhóm đã kích hoạt và còn hạn
+        // Group is activated and not expired
         return true;
 
     } catch (error) {
-        global.logger.error(`Lỗi kiểm tra kích hoạt nhóm ${groupId}: ${error}`);
-        return false; // Mặc định từ chối nếu có lỗi
+        global.logger.error(`Error checking group activation (${groupId}): ${error}`);
+        return false; // Fail safe by denying access on errors
     }
 }

@@ -1,29 +1,29 @@
 import { UserPermission } from '../config';
-import { findUserById } from '../database/models/user';
+import { userService } from '../database/services';
 import { ADMIN_IDS } from '../config';
 import global from '../global';
 
 /**
- * Kiểm tra quyền người dùng
+ * Checks if a user has the required permission
  * 
- * @param userId ID người dùng cần kiểm tra
- * @param requiredPermission Quyền yêu cầu (user, manager, admin)
- * @returns true nếu người dùng có quyền, false nếu không
+ * @param userId ID of the user to check
+ * @param requiredPermission Permission level required
+ * @returns true if user has permission, false otherwise
  */
-export async function permissionCheck(userId, requiredPermission) {
+export async function permissionCheck(userId: string, requiredPermission: UserPermission | string): Promise<boolean> {
     try {
-        // Kiểm tra ID hợp lệ
+        // Check for valid user ID
         if (!userId) {
-            global.logger.error('ID người dùng không hợp lệ');
+            global.logger.error('Invalid user ID for permission check');
             return false;
         }
 
-        // Kiểm tra nếu người dùng là admin (từ cấu hình)
+        // Admin IDs always have all permissions (from config)
         if (ADMIN_IDS.includes(userId)) {
-            return true; // Admin luôn có đủ quyền
+            return true;
         }
 
-        // Chuyển đổi requiredPermission thành enum nếu là chuỗi
+        // Convert string permission to enum if needed
         let requiredPermEnum = requiredPermission;
         if (typeof requiredPermission === 'string') {
             switch (requiredPermission.toLowerCase()) {
@@ -37,21 +37,21 @@ export async function permissionCheck(userId, requiredPermission) {
                     requiredPermEnum = UserPermission.ADMIN;
                     break;
                 default:
-                    global.logger.error(`Quyền không hợp lệ: ${requiredPermission}`);
+                    global.logger.error(`Invalid permission type: ${requiredPermission}`);
                     return false;
             }
         }
 
-        // Tìm người dùng trong cơ sở dữ liệu
-        const user = await findUserById(userId);
+        // Get user from database
+        const user = await userService().findUserById(userId);
 
-        // Nếu không tìm thấy người dùng
+        // Default to user permission for new users
         if (!user) {
-            global.logger.info(`Không tìm thấy người dùng ${userId} trong cơ sở dữ liệu`);
-            return requiredPermEnum === UserPermission.USER; // Mặc định là người dùng thường
+            global.logger.info(`User ${userId} not found in database`);
+            return requiredPermEnum === UserPermission.USER;
         }
 
-        // Chuyển đổi quyền người dùng từ chuỗi thành enum nếu cần
+        // Convert user permission string to enum
         let userPermEnum = user.permission;
         if (typeof user.permission === 'string') {
             switch (user.permission.toLowerCase()) {
@@ -67,28 +67,28 @@ export async function permissionCheck(userId, requiredPermission) {
             }
         }
 
-        // Kiểm tra quyền
+        // Check permission hierarchy
         if (userPermEnum === UserPermission.ADMIN) {
-            return true; // Admin luôn có đủ quyền
+            return true; // Admin has all permissions
         }
 
         if (userPermEnum === UserPermission.MANAGER &&
             (requiredPermEnum === UserPermission.MANAGER ||
                 requiredPermEnum === UserPermission.USER)) {
-            return true; // Manager có quyền manager và user
+            return true; // Manager has manager and user permissions
         }
 
         if (userPermEnum === UserPermission.USER &&
             requiredPermEnum === UserPermission.USER) {
-            return true; // User chỉ có quyền user
+            return true; // User only has user permissions
         }
 
-        // Không đủ quyền
-        global.logger.info(`Người dùng ${userId} (${userPermEnum}) không đủ quyền ${requiredPermEnum}`);
+        // Permission denied
+        global.logger.info(`User ${userId} (${userPermEnum}) lacks permission ${requiredPermEnum}`);
         return false;
 
     } catch (error) {
-        global.logger.error(`Lỗi kiểm tra quyền người dùng ${userId}: ${error}`);
-        return false; // Mặc định từ chối nếu có lỗi
+        global.logger.error(`Error in permission check for user ${userId}: ${error}`);
+        return false; // Fail safe by denying access on errors
     }
 }

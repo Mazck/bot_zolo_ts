@@ -1,13 +1,10 @@
-/**
- * File: src/commands/rent.ts
- * Mô tả: Lệnh thuê bot
- */
-
 import { CommandParams } from '../types';
 import { SUBSCRIPTION_PACKAGES, PackageType, UserPermission } from '../config';
-import { initializeSubscription } from '../services/subscription';
+import { paymentService, groupService } from '../database/services';
 import { formatRentMenu, formatPackageInfo } from '../utils/formatter';
 import { sendTextMessage, sendError } from '../utils/messageHelper';
+import { createPaymentLink, generateOrderCode } from '../services/payos';
+import global from '../global';
 
 const rentCommand = {
     name: 'rent',
@@ -16,10 +13,10 @@ const rentCommand = {
     usage: '/rent [tên_gói]',
     requiredPermission: UserPermission.MANAGER,
 
-    execute: async (params: CommandParams) => {
+    execute: async (params: CommandParams): Promise<void> => {
         const { args, groupId, isGroup, userId } = params;
 
-        // Kiểm tra nếu không phải nhóm
+        // Check if in a group
         if (!isGroup || !groupId) {
             await sendError(
                 'Lệnh này chỉ có thể sử dụng trong nhóm',
@@ -29,17 +26,17 @@ const rentCommand = {
             return;
         }
 
-        // Hiển thị menu thuê nếu không có tham số
+        // If no arguments, show rental packages
         if (args.length === 0) {
             const rentMenu = formatRentMenu(SUBSCRIPTION_PACKAGES);
             await sendTextMessage(rentMenu, groupId, true);
             return;
         }
 
-        // Lấy tên gói
+        // Get package type
         const packageType = args[0].toLowerCase();
 
-        // Kiểm tra gói có tồn tại không
+        // Check if package exists
         if (!Object.keys(SUBSCRIPTION_PACKAGES).includes(packageType)) {
             await sendError(
                 `Gói "${packageType}" không tồn tại. Sử dụng /rent để xem danh sách gói.`,
@@ -50,55 +47,87 @@ const rentCommand = {
         }
 
         try {
-            // Khởi tạo quá trình thuê
-            const packageInfo = SUBSCRIPTION_PACKAGES[packageType];
+            // Get package info
+            const packageInfo = SUBSCRIPTION_PACKAGES[packageType as PackageType];
 
-            // Hiển thị thông tin xác nhận
+            // Check if the package exists
+            if (!packageInfo) {
+                await sendError(
+                    `Gói "${packageType}" không tồn tại. Sử dụng /rent để xem danh sách gói.`,
+                    groupId,
+                    true
+                );
+                return;
+            }
+
+            // Show confirmation info
             const confirmMessage = `🛒 THÔNG TIN THUÊ BOT\n\n` +
                 formatPackageInfo(packageInfo) +
                 `\n💰 Để tiếp tục thanh toán, vui lòng gõ:\n` +
                 `/rent ${packageType} confirm`;
 
-            // Nếu người dùng xác nhận thanh toán
+            // If user confirms payment
             if (args.length > 1 && args[1].toLowerCase() === 'confirm') {
-                // Khởi tạo thanh toán
-                const payment = await initializeSubscription(
+                // Get or create group
+                const group = await groupService().findGroupById(groupId);
+
+                if (!group) {
+                    // Create group if not exists
+                    await groupService().createOrUpdateGroup(groupId, "Nhóm Zalo");
+                }
+
+                // Generate order code
+                const orderCode = generateOrderCode();
+
+                // Create payment record
+                const payment = await paymentService().createPayment(
                     userId,
                     groupId,
-                    packageType as PackageType
+                    packageInfo.price,
+                    packageType as PackageType,
+                    orderCode,
+                    `Thuê bot ZCA - ${packageInfo.name} - Nhóm ${groupId}`
                 );
 
-                // Gửi thông tin thanh toán
+                if (!payment) {
+                    throw new Error('Không thể tạo thanh toán trong cơ sở dữ liệu');
+                }
+
+                // Create payment link with PayOS
+                const isExtend = group?.isActive ?? false;
+                const actionText = isExtend ? "Gia hạn bot" : "Thuê bot";
+                const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${group?.name || groupId}`;
+
+                const paymentLinkResponse = await createPaymentLink(
+                    packageInfo.price,
+                    orderCode,
+                    description
+                );
+
+                // Send payment information
                 const paymentMessage = `💳 THANH TOÁN GÓI ${packageInfo.name.toUpperCase()}\n\n` +
                     `💲 Số tiền: ${packageInfo.price.toLocaleString('vi-VN')}đ\n` +
                     `📝 Nội dung: Thuê bot ZCA - ${packageInfo.name}\n` +
-                    `🔗 Link thanh toán: ${payment.paymentLink}\n\n` +
+                    `🔗 Link thanh toán: ${paymentLinkResponse.data.checkoutUrl}\n\n` +
                     `📱 Vui lòng quét mã QR hoặc truy cập link trên để thanh toán.\n` +
                     `⏳ Link có hiệu lực trong 24 giờ.\n\n` +
                     `🔍 Lưu ý: Sau khi thanh toán thành công, bot sẽ tự động kích hoạt trong vòng 1-2 phút.`;
 
-                // Gửi tin nhắn thông báo thanh toán
                 await sendTextMessage(paymentMessage, groupId, true);
 
-                // Gửi mã QR cho người dùng nếu có
-                if (payment.qrCode) {
-                    if (global.bot) {
-                        try {
-                            // Lưu QR code thành file tạm và gửi (nếu cần)
-                            // Ở đây chúng ta đang giả định rằng PayOS trả về URL của QR code
-                            // Trong thực tế, bạn cần kiểm tra dữ liệu qrCode và xử lý phù hợp
-                            await global.bot.sendMessage({
-                                msg: "Mã QR thanh toán PayOS:",
-                                // Giả sử có method sendImage trong ZCA-JS API hoặc bạn cần triển khai nó
-                                // attachments: [payment.qrCode]
-                            }, groupId, true);
-                        } catch (qrError) {
-                            global.logger.error(`Lỗi gửi mã QR: ${qrError}`);
-                        }
+                // Send QR code if available
+                if (paymentLinkResponse.data.qrCode && global.bot) {
+                    try {
+                        await global.bot.sendMessage({
+                            msg: "Mã QR thanh toán PayOS:",
+                            // attachments: [paymentLinkResponse.data.qrCode]
+                        }, groupId, true);
+                    } catch (qrError) {
+                        global.logger.error(`Lỗi gửi mã QR: ${qrError}`);
                     }
                 }
             } else {
-                // Gửi thông tin xác nhận
+                // Send confirmation message
                 await sendTextMessage(confirmMessage, groupId, true);
             }
         } catch (error: any) {

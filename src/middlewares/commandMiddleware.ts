@@ -1,34 +1,41 @@
 import { activationCheck } from './activationCheck';
 import { permissionCheck } from './permissionCheck';
 import { antiSpamCheck } from './antiSpam';
-import { formatError } from '../utils/formatter';
-import { sendTextMessage, sendError } from '../utils/messageHelper';
+import { sendTextMessage } from '../utils/messageHelper';
 import global from '../global';
 
 /**
- * Middleware xử lý lệnh tổng hợp
- * Thực hiện các kiểm tra theo thứ tự:
- * 1. Chống spam
- * 2. Kích hoạt nhóm
- * 3. Quyền người dùng
+ * Middleware for processing commands
+ * Performs checks in the following order:
+ * 1. Anti-spam check
+ * 2. Group activation check
+ * 3. User permission check
  * 
- * @param params Object chứa thông tin lệnh và người dùng
- * @param execute Hàm thực thi khi tất cả các kiểm tra đều thành công
+ * @param params Command parameters (userId, groupId, command, etc.)
+ * @param execute Function to execute if all checks pass
  */
-export async function commandMiddleware(params, execute) {
+export async function commandMiddleware(
+    params: {
+        userId: string;
+        groupId?: string;
+        isGroup: boolean;
+        command: any;
+    },
+    execute: () => Promise<void>
+): Promise<void> {
     const { userId, groupId, isGroup, command } = params;
 
-    // Kiểm tra tham số bắt buộc
+    // Validate required parameters
     if (!userId || !command) {
-        global.logger.error('Thiếu tham số bắt buộc cho middleware');
+        global.logger.error('Missing required parameters for command middleware');
         return;
     }
 
     try {
-        // 1. Kiểm tra chống spam
-        const isNotSpamming = await antiSpamCheck(userId, command);
-        if (!isNotSpamming) {
-            await sendError(
+        // 1. Anti-spam check
+        const notSpamming = await antiSpamCheck(userId, command);
+        if (!notSpamming) {
+            await sendTextMessage(
                 'Bạn đang gửi lệnh quá nhanh. Vui lòng thử lại sau.',
                 isGroup && groupId ? groupId : userId,
                 isGroup
@@ -36,20 +43,19 @@ export async function commandMiddleware(params, execute) {
             return;
         }
 
-        // 2. Kiểm tra kích hoạt nhóm (chỉ trong nhóm)
+        // 2. Group activation check (only for group messages)
         if (isGroup && groupId) {
             const isActivated = await activationCheck(groupId);
             if (!isActivated) {
-                // Nhóm chưa kích hoạt, hiển thị thông tin thuê bot
                 await sendRentInfo(groupId);
                 return;
             }
         }
 
-        // 3. Kiểm tra quyền
+        // 3. Permission check
         const hasPermission = await permissionCheck(userId, command.requiredPermission);
         if (!hasPermission) {
-            await sendError(
+            await sendTextMessage(
                 `Bạn không có quyền ${command.requiredPermission} để sử dụng lệnh này.`,
                 isGroup && groupId ? groupId : userId,
                 isGroup
@@ -57,12 +63,12 @@ export async function commandMiddleware(params, execute) {
             return;
         }
 
-        // Thực thi lệnh sau khi đã qua tất cả các kiểm tra
+        // Execute command if all checks pass
         await execute();
 
     } catch (error) {
-        global.logger.error(`Lỗi trong command middleware: ${error}`);
-        await sendError(
+        global.logger.error(`Error in command middleware: ${error}`);
+        await sendTextMessage(
             'Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.',
             isGroup && groupId ? groupId : userId,
             isGroup
@@ -71,10 +77,9 @@ export async function commandMiddleware(params, execute) {
 }
 
 /**
- * Hiển thị thông tin thuê bot
- * @param groupId ID nhóm
+ * Sends information about renting the bot when a group isn't activated
  */
-async function sendRentInfo(groupId) {
+async function sendRentInfo(groupId: string): Promise<void> {
     try {
         const message = `📢 Nhóm chưa kích hoạt dịch vụ\n\n` +
             `Để sử dụng các tính năng của bot, nhóm cần được kích hoạt trước.\n` +
@@ -85,6 +90,6 @@ async function sendRentInfo(groupId) {
 
         await sendTextMessage(message, groupId, true);
     } catch (error) {
-        global.logger.error(`Lỗi gửi thông tin thuê: ${error}`);
+        global.logger.error(`Error sending rent info: ${error}`);
     }
 }

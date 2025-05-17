@@ -1,7 +1,7 @@
 import { CommandParams } from '../types';
 import { SUBSCRIPTION_PACKAGES, PackageType, UserPermission } from '../config';
 import { initializeSubscription } from '../services/subscription';
-import { findGroupById } from '../database/models/group';
+import { groupService } from '../database/services';
 import { formatPackageInfo } from '../utils/formatter';
 import { sendTextMessage, sendError } from '../utils/messageHelper';
 
@@ -26,7 +26,7 @@ const extendCommand = {
         }
 
         // Kiểm tra xem nhóm có tồn tại trong database không
-        const group = await findGroupById(groupId);
+        const group = await groupService().findGroupById(groupId);
         if (!group) {
             await sendError(
                 'Không tìm thấy thông tin nhóm trong cơ sở dữ liệu',

@@ -1,50 +1,57 @@
+/**
+ * Event handler setup
+ * 
+ * This file sets up all event listeners for the bot
+ */
+
 import { setupMessageListener } from './messageHandler';
 import { setupGroupEventListener } from './groupHandler';
 import { setupReactionListener } from './reactionHandler';
-import { cleanupOldCommandUsage } from '../database/models/commandTracker';
+import { commandTrackingService } from '../database/services';
 import global from '../global';
 
 /**
- * Thiết lập tất cả các trình lắng nghe sự kiện
+ * Sets up all event listeners
  */
 export function setupEventListeners() {
     if (!global.bot) {
-        global.logger.error('Bot chưa được khởi tạo, không thể thiết lập event listeners');
+        global.logger.error('Bot not initialized, cannot set up event listeners');
         return;
     }
 
     try {
-        // Bắt đầu lắng nghe sự kiện
+        // Start listening for events
         global.bot.listener.start();
-        global.logger.info('Đã khởi động trình lắng nghe sự kiện Zalo');
+        global.logger.info('Zalo event listener started');
 
-        // Thiết lập các trình lắng nghe cụ thể
+        // Set up specific event handlers
         setupMessageListener();
         setupGroupEventListener();
         setupReactionListener();
 
-        // Thiết lập tác vụ dọn dẹp dữ liệu command tracker
+        // Set up data cleanup task
         setupCleanupTask();
 
-        global.logger.info('Đã thiết lập tất cả các trình lắng nghe sự kiện');
+        global.logger.info('All event listeners setup complete');
     } catch (error) {
-        global.logger.error(`Lỗi thiết lập trình lắng nghe sự kiện: ${error}`);
+        global.logger.error(`Error setting up event listeners: ${error}`);
     }
 }
 
 /**
- * Thiết lập tác vụ dọn dẹp dữ liệu cũ
+ * Sets up periodic data cleanup task
  */
 function setupCleanupTask() {
-    // Dọn dẹp mỗi 6 giờ
+    // Clean up every 6 hours
     setInterval(async () => {
         try {
-            // Xóa lịch sử lệnh cũ hơn 24 giờ
-            await cleanupOldCommandUsage(24 * 60 * 60 * 1000);
+            // Delete command usage data older than 24 hours
+            // Note the () to call the function first
+            await commandTrackingService().cleanupOldCommandUsage(24 * 60 * 60 * 1000);
         } catch (error) {
-            global.logger.error(`Lỗi dọn dẹp dữ liệu cũ: ${error}`);
+            global.logger.error(`Error cleaning up old data: ${error}`);
         }
     }, 6 * 60 * 60 * 1000);
 
-    global.logger.info('Đã thiết lập tác vụ dọn dẹp dữ liệu');
+    global.logger.info('Data cleanup task scheduled');
 }

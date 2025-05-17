@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Router } from 'express';
 import { processWebhookData, getPaymentStatusDescription } from '../../services/payos';
 import { processSuccessfulPayment } from '../../services/subscription';
-import { findPaymentByOrderCode } from '../../database/models/payment';
+import { paymentService } from '../../database/services';
 import { PAYOS_CONFIG } from '../../config';
 import global from '../../global';
 
@@ -31,7 +31,7 @@ export function setupPayOSWebhook(app: Express) {
           global.logger.info(`Nhận webhook thanh toán thành công: ${webhookData.data.orderCode}`);
 
           // Tìm payment trong database
-          const payment = await findPaymentByOrderCode(webhookData.data.orderCode);
+          const payment = await paymentService().findPaymentByOrderCode(webhookData.data.orderCode);
 
           if (!payment) {
             global.logger.error(`Không tìm thấy payment với order code: ${webhookData.data.orderCode}`);

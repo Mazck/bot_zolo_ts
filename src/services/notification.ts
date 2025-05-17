@@ -1,7 +1,6 @@
 import { TextStyle } from '../types';
 import { sendTextMessage, sendStyledMessage, sendAttachmentMessage } from '../utils/messageHelper';
-import { findGroupById } from '../database/models/group';
-import { findUserById } from '../database/models/user';
+import { userService , groupService } from '../database/services';
 import { createPaymentLink, generateOrderCode } from './payos';
 import { formatCurrency } from '../utils/formatter';
 import { SUBSCRIPTION_PACKAGES, PackageType } from '../config';
@@ -115,7 +114,7 @@ export async function sendPaymentNotification(
 ): Promise<boolean> {
     try {
         // Kiểm tra nhóm và gói dịch vụ
-        const group = await findGroupById(groupId);
+        const group = await groupService().findGroupById(groupId);
         if (!group) {
             global.logger.error(`Không tìm thấy nhóm: ${groupId}`);
             return false;
@@ -128,7 +127,7 @@ export async function sendPaymentNotification(
         }
 
         // Kiểm tra người dùng
-        const user = await findUserById(userId);
+        const user = await userService().findUserById(userId);
         if (!user) {
             global.logger.error(`Không tìm thấy người dùng: ${userId}`);
             return false;
@@ -158,7 +157,7 @@ Code: ${paymentCode}`;
                 packageInfo.price,
                 orderCode,
                 description,
-                user.name,
+                user.id,
                 '', // email
                 '', // phone
             );
@@ -285,7 +284,7 @@ export async function sendSuccessNotification(
 ): Promise<boolean> {
     try {
         // Kiểm tra nhóm và gói dịch vụ
-        const group = await findGroupById(groupId);
+        const group = await groupService().findGroupById(groupId);
         if (!group) {
             global.logger.error(`Không tìm thấy nhóm: ${groupId}`);
             return false;
@@ -342,7 +341,7 @@ export async function sendReminderNotification(
 ): Promise<boolean> {
     try {
         // Kiểm tra nhóm
-        const group = await findGroupById(groupId);
+        const group = await groupService().findGroupById(groupId);
         if (!group) {
             global.logger.error(`Không tìm thấy nhóm: ${groupId}`);
             return false;
@@ -377,7 +376,7 @@ export async function sendReminderNotification(
 export async function sendExpirationNotification(groupId: string): Promise<boolean> {
     try {
         // Kiểm tra nhóm
-        const group = await findGroupById(groupId);
+        const group = await groupService().findGroupById(groupId);
         if (!group) {
             global.logger.error(`Không tìm thấy nhóm: ${groupId}`);
             return false;

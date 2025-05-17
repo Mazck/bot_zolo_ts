@@ -1,22 +1,16 @@
-/**
- * File: src/services/subscription.ts
- * Mô tả: Dịch vụ quản lý thuê bao và thanh toán
- */
-
 import { SUBSCRIPTION_PACKAGES, PackageType } from '../config';
-import { createPayment, updatePaymentStatus } from '../database/models/payment';
-import { activateGroup, deactivateGroup, getExpiredGroups, findGroupById } from '../database/models/group';
+import { paymentService, groupService, subscriptionService } from '../database/services';
 import { createPaymentLink, generateOrderCode } from './payos';
 import { sendTextMessage } from '../utils/messageHelper';
 import { Package } from '../types';
 import global from '../global';
 
 /**
- * Khởi tạo quá trình thuê bot
- * @param userId ID người dùng
- * @param groupId ID nhóm
- * @param packageType Loại gói
- * @returns Object chứa paymentId và link thanh toán
+ * Initializes a subscription process for a group
+ * @param userId ID of the user requesting the subscription
+ * @param groupId ID of the group to subscribe
+ * @param packageType Type of subscription package
+ * @returns Payment information with links
  */
 export async function initializeSubscription(
     userId: string,
@@ -24,25 +18,25 @@ export async function initializeSubscription(
     packageType: PackageType
 ): Promise<{ paymentId: string; paymentLink: string; qrCode: string }> {
     try {
-        // Kiểm tra gói có tồn tại không
+        // Check if package exists
         if (!Object.keys(SUBSCRIPTION_PACKAGES).includes(packageType)) {
-            throw new Error(`Gói ${packageType} không tồn tại`);
+            throw new Error(`Package ${packageType} does not exist`);
         }
 
         const packageInfo = SUBSCRIPTION_PACKAGES[packageType] as Package;
 
-        // Kiểm tra thông tin nhóm
-        const group = await findGroupById(groupId);
+        // Check if group exists
+        const group = await groupService().findGroupById(groupId);
 
         if (!group) {
-            throw new Error('Không tìm thấy thông tin nhóm');
+            throw new Error('Group not found');
         }
 
-        // Tạo mã đơn hàng
+        // Generate order code
         const orderCode = generateOrderCode();
 
-        // Tạo thanh toán trong DB
-        const payment = await createPayment(
+        // Create payment record in database
+        const payment = await paymentService().createPayment(
             userId,
             groupId,
             packageInfo.price,
@@ -51,189 +45,172 @@ export async function initializeSubscription(
         );
 
         if (!payment) {
-            throw new Error('Không thể tạo thanh toán trong cơ sở dữ liệu');
+            throw new Error('Failed to create payment record in database');
         }
 
-        // Chuẩn bị mô tả thanh toán
+        // Prepare payment description
         const isExtend = group.isActive;
-        const actionText = isExtend ? "Gia hạn bot" : "Thuê bot";
-        const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${group.name}`;
+        const actionText = isExtend ? "Extend bot" : "Rent bot";
+        const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} days - Group: ${group.name}`;
 
-        // Tạo link thanh toán qua PayOS
+        // Create payment link via PayOS
         const paymentLinkResponse = await createPaymentLink(
             packageInfo.price,
             orderCode,
             description
         );
 
-        // Ghi log thông tin tạo thanh toán
-        global.logger.info(`Đã tạo thanh toán: ${packageType}, Số tiền: ${packageInfo.price}, Order: ${orderCode}`);
+        // Log payment creation
+        global.logger.info(`Created payment: ${packageType}, Amount: ${packageInfo.price}, Order: ${orderCode}`);
 
-        // Trả về thông tin thanh toán
+        // Return payment information
         return {
             paymentId: payment.id,
             paymentLink: paymentLinkResponse.data.checkoutUrl,
             qrCode: paymentLinkResponse.data.qrCode
         };
     } catch (error) {
-        global.logger.error(`Lỗi khởi tạo thuê bot: ${error}`);
+        global.logger.error(`Error initializing subscription: ${error}`);
         throw error;
     }
 }
 
 /**
- * Xử lý thanh toán thành công
- * @param paymentId ID thanh toán
- * @param transactionId ID giao dịch PayOS
- * @returns true nếu xử lý thành công, false nếu không
+ * Processes a successful payment
+ * @param paymentId ID of the payment
+ * @param transactionId PayOS transaction ID
+ * @returns True if processing was successful
  */
 export async function processSuccessfulPayment(
     paymentId: string,
     transactionId: string
 ): Promise<boolean> {
     try {
-        // Cập nhật trạng thái thanh toán
-        const payment = await updatePaymentStatus(
+        // Update payment status
+        const payment = await paymentService().updatePaymentStatus(
             paymentId,
             'completed',
             transactionId
         );
 
         if (!payment) {
-            throw new Error(`Không tìm thấy thanh toán với ID: ${paymentId}`);
+            throw new Error(`Payment not found: ${paymentId}`);
         }
 
-        // Lấy thông tin gói
-        const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType];
+        // Get package information
+        const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType as PackageType];
 
         if (!packageInfo) {
-            throw new Error(`Không tìm thấy thông tin gói: ${payment.packageType}`);
+            throw new Error(`Package not found: ${payment.packageType}`);
         }
 
-        // Kích hoạt nhóm
-        const activatedGroup = await activateGroup(payment.groupId, packageInfo.days);
+        // Activate group subscription
+        await subscriptionService().createSubscription(
+            payment.groupId,
+            payment.userId,
+            packageInfo.days
+        );
 
-        if (!activatedGroup) {
-            throw new Error(`Không thể kích hoạt nhóm với ID: ${payment.groupId}`);
+        // Get updated group with new expiration date
+        const group = await groupService().findGroupById(payment.groupId);
+
+        if (!group) {
+            throw new Error(`Group not found: ${payment.groupId}`);
         }
 
-        // Gửi thông báo
+        // Send notification
         if (global.bot) {
-            const isExtended = activatedGroup.activatedAt && (new Date().getTime() - activatedGroup.activatedAt.getTime() > 3600000);
-            const actionText = isExtended ? "GIA HẠN" : "KÍCH HOẠT";
+            const isExtended = group.activatedAt &&
+                (new Date().getTime() - (group.activatedAt?.getTime() || 0) > 3600000);
 
-            const message = `🎉 ${actionText} THÀNH CÔNG!\n\n` +
-                `✅ Nhóm đã được ${isExtended ? "gia hạn" : "kích hoạt"} với gói ${packageInfo.name}.\n` +
-                `✅ Thời hạn: ${packageInfo.days} ngày\n` +
-                `✅ Hết hạn: ${activatedGroup.expiresAt?.toLocaleString('vi-VN')}\n\n` +
-                `💰 Số tiền: ${packageInfo.price.toLocaleString('vi-VN')}đ\n` +
-                `🧾 Mã giao dịch: ${transactionId}\n\n` +
-                `Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!`;
+            const actionText = isExtended ? "EXTENSION" : "ACTIVATION";
+
+            const message = `🎉 ${actionText} SUCCESSFUL!\n\n` +
+                `✅ The group has been ${isExtended ? "extended" : "activated"} with ${packageInfo.name}.\n` +
+                `✅ Duration: ${packageInfo.days} days\n` +
+                `✅ Expires: ${group.expiresAt?.toLocaleString('vi-VN')}\n\n` +
+                `💰 Amount: ${packageInfo.price.toLocaleString('vi-VN')}đ\n` +
+                `🧾 Transaction ID: ${transactionId}\n\n` +
+                `Thank you for using our service!`;
 
             await sendTextMessage(message, payment.groupId, true);
         }
 
-        global.logger.info(`Đã kích hoạt nhóm ${payment.groupId} thành công với gói ${payment.packageType}`);
+        global.logger.info(`Successfully activated group ${payment.groupId} with package ${payment.packageType}`);
         return true;
     } catch (error) {
-        global.logger.error(`Lỗi xử lý thanh toán: ${error}`);
+        global.logger.error(`Error processing payment: ${error}`);
         return false;
     }
 }
 
 /**
- * Kiểm tra và vô hiệu hóa các nhóm hết hạn
+ * Checks for and deactivates expired groups
  */
 export async function checkExpiredGroups(): Promise<void> {
     try {
-        const expiredGroups = await getExpiredGroups();
+        // Use subscription service to deactivate expired subscriptions
+        const count = await subscriptionService().deactivateExpiredSubscriptions();
 
-        if (expiredGroups.length === 0) {
-            global.logger.info('Không có nhóm nào hết hạn');
-            return;
-        }
-
-        global.logger.info(`Tìm thấy ${expiredGroups.length} nhóm đã hết hạn`);
-
-        for (const group of expiredGroups) {
-            await deactivateGroup(group.id);
-
-            // Gửi thông báo
-            if (global.bot) {
-                const message = `⚠️ THÔNG BÁO HẾT HẠN\n\n` +
-                    `Thời hạn thuê bot của nhóm đã kết thúc vào ${group.expiresAt?.toLocaleString('vi-VN')}.\n\n` +
-                    `Để tiếp tục sử dụng dịch vụ, vui lòng gia hạn bằng cách sử dụng lệnh:\n` +
-                    `- Lệnh gia hạn: ${process.env.BOT_PREFIX || '/'}extend [tên_gói]\n` +
-                    `- Xem các gói dịch vụ: ${process.env.BOT_PREFIX || '/'}rent`;
-
-                await sendTextMessage(message, group.id, true);
-            }
-
-            global.logger.info(`Đã vô hiệu hóa nhóm hết hạn: ${group.id}`);
+        if (count > 0) {
+            global.logger.info(`Deactivated ${count} expired subscriptions`);
+        } else {
+            global.logger.info('No expired subscriptions found');
         }
     } catch (error) {
-        global.logger.error(`Lỗi kiểm tra nhóm hết hạn: ${error}`);
+        global.logger.error(`Error checking expired groups: ${error}`);
     }
 }
 
 /**
- * Lấy thông tin gói theo loại
- * @param packageType Loại gói
- * @returns Thông tin gói hoặc null
+ * Sends expiration reminders to groups
+ * @param daysBeforeExpiration Days before expiration to send reminders
+ */
+export async function sendExpirationReminders(daysBeforeExpiration: number = 3): Promise<void> {
+    try {
+        // Get subscriptions that will expire soon
+        const expiringSubscriptions = await subscriptionService().getSubscriptionsExpiringSoon(daysBeforeExpiration);
+
+        if (expiringSubscriptions.length === 0) {
+            global.logger.info('No subscriptions expiring soon');
+            return;
+        }
+
+        global.logger.info(`Found ${expiringSubscriptions.length} subscriptions expiring soon`);
+
+        // Send reminder for each subscription
+        for (const subscription of expiringSubscriptions) {
+            if (global.bot) {
+                const daysLeft = Math.ceil(
+                    (subscription.endDate.getTime() - new Date().getTime()) /
+                    (1000 * 60 * 60 * 24)
+                );
+
+                const message = `⏰ EXPIRATION NOTICE\n\n` +
+                    `Your bot subscription will expire in ${daysLeft} days (${subscription.endDate.toLocaleString('vi-VN')}).\n\n` +
+                    `To continue using our service, please extend your subscription using the commands:\n` +
+                    `- Type /extend to see available packages\n` +
+                    `- Type /extend [package_name] to extend with a specific package\n\n` +
+                    `📢 Extend now to avoid service interruption!`;
+
+                await sendTextMessage(message, subscription.groupId, true);
+                global.logger.info(`Sent expiration reminder to group: ${subscription.groupId}`);
+            }
+        }
+    } catch (error) {
+        global.logger.error(`Error sending expiration reminders: ${error}`);
+    }
+}
+
+/**
+ * Gets information about a package
+ * @param packageType Package type
+ * @returns Package information or null
  */
 export function getPackageInfo(packageType: string): Package | null {
     if (!Object.keys(SUBSCRIPTION_PACKAGES).includes(packageType)) {
         return null;
     }
 
-    return SUBSCRIPTION_PACKAGES[packageType];
-}
-
-/**
- * Tạo thông báo nhắc nhở gia hạn cho nhóm sắp hết hạn
- * @param daysBeforeExpiration Số ngày trước khi hết hạn để nhắc nhở
- */
-export async function sendExpirationReminders(daysBeforeExpiration: number = 3): Promise<void> {
-    try {
-        if (!global.db) return;
-
-        const groupRepository = global.db.getRepository('groups');
-        const now = new Date();
-
-        // Import for TypeORM operators
-        const { Between } = require('typeorm');
-
-        // Tính ngày hết hạn trong khoảng cần nhắc nhở
-        const startDate = new Date(now);
-        startDate.setDate(now.getDate() + daysBeforeExpiration - 1);
-
-        const endDate = new Date(now);
-        endDate.setDate(now.getDate() + daysBeforeExpiration);
-
-        // Tìm nhóm sắp hết hạn
-        const groups = await groupRepository.find({
-            where: {
-                isActive: true,
-                expiresAt: Between(startDate, endDate)
-            }
-        });
-
-        // Gửi thông báo nhắc nhở
-        for (const group of groups) {
-            if (global.bot) {
-                const daysLeft = Math.ceil((group.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-                const message = `⏰ THÔNG BÁO HẾT HẠN\n\n` +
-                    `Thời hạn thuê bot của nhóm sẽ kết thúc trong ${daysLeft} ngày (${group.expiresAt.toLocaleString('vi-VN')}).\n\n` +
-                    `Để tiếp tục sử dụng dịch vụ, vui lòng gia hạn bằng cách sử dụng lệnh:\n` +
-                    `- Lệnh gia hạn: ${process.env.BOT_PREFIX || '/'}extend [tên_gói]\n` +
-                    `- Xem các gói dịch vụ: ${process.env.BOT_PREFIX || '/'}rent`;
-
-                await sendTextMessage(message, group.id, true);
-                global.logger.info(`Đã gửi thông báo nhắc nhở hết hạn cho nhóm: ${group.id}`);
-            }
-        }
-    } catch (error) {
-        global.logger.error(`Lỗi gửi thông báo nhắc nhở hết hạn: ${error}`);
-    }
+    return SUBSCRIPTION_PACKAGES[packageType as PackageType];
 }

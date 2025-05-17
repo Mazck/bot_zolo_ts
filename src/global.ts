@@ -1,11 +1,11 @@
 import { Logger } from 'winston';
-import { Connection } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { createLogger } from './utils/logger';
-import { Command } from './types'; // Import Command interface
+import { Command } from './types';
 
-// Define ZaloAPI interface locally
+// Define ZaloAPI interface 
 export interface ZaloAPI {
-    id?: string; // Make id optional
+    id?: string;
     listener: {
         start(): void;
         stop(): void;
@@ -18,21 +18,21 @@ export interface ZaloAPI {
     [key: string]: any;
 }
 
-// Khai báo kiểu dữ liệu cho biến toàn cục
+// Global state interface
 interface Global {
-    bot: ZaloAPI | null;              // Instance của Zalo API
-    db: Connection | null;            // Kết nối cơ sở dữ liệu
+    bot: ZaloAPI | null;              // Zalo API instance
+    db: DataSource | null;            // Database connection
     logger: Logger;                   // Logger
-    commands: Map<string, Command>;   // Update to use the Command interface
-    config: {                         // Cấu hình runtime
-        startTime: Date;                // Thời điểm khởi động
-        processId: string;              // ID process
-        environment: string;            // Môi trường (development/production)
-        isReady: boolean;               // Trạng thái sẵn sàng của bot
+    commands: Map<string, Command>;   // Command registry
+    config: {                         // Runtime configuration
+        startTime: Date;                // Application start time
+        processId: string;              // Process ID
+        environment: string;            // Environment (development/production)
+        isReady: boolean;               // Application readiness state
     };
 }
 
-// Khởi tạo giá trị mặc định
+// Initialize default values
 const global: Global = {
     bot: null,
     db: null,

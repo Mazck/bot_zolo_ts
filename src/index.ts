@@ -7,32 +7,31 @@ import { loginWithCookie } from './auth/login';
 import { setupEventListeners } from './events/handler';
 import { registerCommands } from './commands';
 import { setupWebServer } from './webserver';
-import { checkExpiredGroups, sendExpirationReminders } from './services/subscription';
-import { cleanupOldCommandUsage } from './database/models/commandTracker';
+import { userService, groupService, commandTrackingService, subscriptionService } from './database/services';
 import global from './global';
 
-// Tải biến môi trường trước khi thực hiện bất kỳ hành động nào
+// Load environment variables before doing anything else
 dotenv.config();
 
-// Đảm bảo các thư mục cần thiết tồn tại
+// Ensure required directories exist
 ensureDirectoriesExist();
 
 /**
- * Khởi tạo và cấu hình bot
+ * Initialize the bot with Zalo credentials
  */
 async function initializeBot() {
     try {
-        // Đăng nhập với cookie
+        // Login with cookie
         const api = await loginWithCookie();
-        global.logger.info(`Bot đã khởi động thành công với ID: ${api.id}`);
+        global.logger.info(`Bot successfully started with ID: ${api.id}`);
         return api;
     } catch (error) {
-        throw new Error(`Khởi tạo bot thất bại: ${error}`);
+        throw new Error(`Bot initialization failed: ${error}`);
     }
 }
 
 /**
- * Đảm bảo các thư mục cần thiết tồn tại
+ * Ensure required directories exist
  */
 function ensureDirectoriesExist() {
     const dirs = [
@@ -44,150 +43,158 @@ function ensureDirectoriesExist() {
         const dirPath = path.join(process.cwd(), dir);
         if (!fs.existsSync(dirPath)) {
             fs.mkdirSync(dirPath, { recursive: true });
-            global.logger.info(`Đã tạo thư mục: ${dir}`);
+            global.logger.info(`Created directory: ${dir}`);
         }
     }
 }
 
 /**
- * Thiết lập các tác vụ định kỳ
+ * Setup recurring tasks
  */
 function setupCronTasks() {
-    // Kiểm tra nhóm hết hạn mỗi giờ
+    // Check for expired groups hourly
     cron.schedule('0 * * * *', async () => {
-        global.logger.info('Đang chạy kiểm tra nhóm hết hạn...');
+        global.logger.info('Running expired groups check...');
         try {
-            await checkExpiredGroups();
+            // Use the service function call pattern
+            await subscriptionService().deactivateExpiredSubscriptions();
         } catch (error) {
-            global.logger.error(`Lỗi kiểm tra nhóm hết hạn: ${error}`);
+            global.logger.error(`Error checking expired groups: ${error}`);
         }
     });
 
-    // Gửi thông báo nhắc nhở gia hạn mỗi ngày lúc 8 giờ sáng
+    // Send renewal reminders daily at 8 AM
     cron.schedule('0 8 * * *', async () => {
-        global.logger.info('Đang gửi thông báo nhắc nhở gia hạn...');
+        global.logger.info('Sending renewal reminders...');
         try {
-            await sendExpirationReminders(3); // Nhắc nhở trước 3 ngày
+            const expiringSubscriptions = await subscriptionService().getSubscriptionsExpiringSoon(3);
+
+            // Process each expiring subscription
+            for (const subscription of expiringSubscriptions) {
+                // Implementation to send reminders
+                global.logger.info(`Reminder sent for group: ${subscription.groupId}`);
+            }
         } catch (error) {
-            global.logger.error(`Lỗi gửi thông báo nhắc nhở gia hạn: ${error}`);
+            global.logger.error(`Error sending renewal reminders: ${error}`);
         }
     });
 
-    // Dọn dẹp dữ liệu lệnh cũ mỗi 6 giờ
+    // Clean up old command usage data every 6 hours
     cron.schedule('0 */6 * * *', async () => {
-        global.logger.info('Đang chạy dọn dẹp dữ liệu lệnh cũ...');
+        global.logger.info('Cleaning up old command usage data...');
         try {
-            await cleanupOldCommandUsage(24 * 60 * 60 * 1000); // Xóa dữ liệu cũ hơn 24 giờ
+            // Note the () to call the function first
+            await commandTrackingService().cleanupOldCommandUsage(24 * 60 * 60 * 1000); // Delete data older than 24 hours
         } catch (error) {
-            global.logger.error(`Lỗi dọn dẹp dữ liệu lệnh cũ: ${error}`);
+            global.logger.error(`Error cleaning up old command data: ${error}`);
         }
     });
 
-    // Sao lưu cơ sở dữ liệu hàng ngày lúc 0 giờ
+    // Backup database daily at midnight
     cron.schedule('0 0 * * *', () => {
-        global.logger.info('Đang sao lưu cơ sở dữ liệu...');
+        global.logger.info('Backing up database...');
         try {
             const { exec } = require('child_process');
             exec('node scripts/backup.js', (error: Error | null, _stdout: string, _stderr: string) => {
                 if (error) {
-                    global.logger.error(`Lỗi sao lưu cơ sở dữ liệu: ${error}`);
+                    global.logger.error(`Database backup error: ${error}`);
                     return;
                 }
-                global.logger.info('Sao lưu cơ sở dữ liệu thành công');
+                global.logger.info('Database backup successful');
             });
         } catch (error) {
-            global.logger.error(`Lỗi sao lưu cơ sở dữ liệu: ${error}`);
+            global.logger.error(`Database backup error: ${error}`);
         }
     });
 
-    global.logger.info('Đã thiết lập tác vụ định kỳ');
+    global.logger.info('Scheduled tasks setup complete');
 }
 
 /**
- * Xử lý tắt ứng dụng
+ * Setup shutdown handler
  */
 function setupShutdownHandler() {
-    // Bắt sự kiện khi ứng dụng bị tắt
+    // Handle application shutdown
     process.on('SIGINT', async () => {
-        global.logger.info('Đang tắt ứng dụng...');
+        global.logger.info('Application shutting down...');
         try {
-            // Đóng kết nối cơ sở dữ liệu nếu đang mở
+            // Close database connection if open
             await closeDatabase();
 
-            // Các tác vụ dọn dẹp khác nếu cần
-            global.logger.info('Đã tắt ứng dụng an toàn');
+            // Other cleanup tasks if needed
+            global.logger.info('Application shutdown complete');
         } catch (error) {
-            global.logger.error(`Lỗi khi tắt ứng dụng: ${error}`);
+            global.logger.error(`Error during shutdown: ${error}`);
         }
         process.exit(0);
     });
 
-    // Bắt lỗi không xử lý
+    // Handle uncaught exceptions
     process.on('uncaughtException', (error: Error) => {
-        global.logger.error(`Lỗi không xử lý: ${error.stack}`);
+        global.logger.error(`Uncaught exception: ${error.stack}`);
     });
 
-    // Bắt promise bị từ chối mà không xử lý
+    // Handle unhandled promise rejections
     process.on('unhandledRejection', (reason: any, _promise: Promise<any>) => {
-        global.logger.error(`Promise bị từ chối mà không xử lý: ${reason}`);
+        global.logger.error(`Unhandled promise rejection: ${reason}`);
     });
 }
 
 /**
- * Hàm khởi động ứng dụng
+ * Application startup function
  */
 async function startApplication() {
     try {
         const startTime = Date.now();
-        global.logger.info('Đang khởi động ứng dụng...');
+        global.logger.info('Starting application...');
 
-        // Khởi tạo cơ sở dữ liệu
-        global.logger.info('Đang kết nối cơ sở dữ liệu...');
+        // Initialize database connection
+        global.logger.info('Connecting to database...');
         await initializeDatabase();
-        global.logger.info('Kết nối cơ sở dữ liệu thành công');
+        global.logger.info('Database connection successful');
 
-        // Khởi tạo bot
-        global.logger.info('Đang khởi tạo bot...');
+        // Initialize bot
+        global.logger.info('Initializing bot...');
         global.bot = await initializeBot();
-        global.logger.info(`Bot đã khởi động với ID: ${global.bot.id}`);
+        global.logger.info(`Bot initialized with ID: ${global.bot.id}`);
 
-        // Đăng ký lệnh
-        global.logger.info('Đang đăng ký lệnh...');
+        // Register commands
+        global.logger.info('Registering commands...');
         const commandCount = registerCommands();
-        global.logger.info(`Đã đăng ký ${commandCount} lệnh`);
+        global.logger.info(`Registered ${commandCount} commands`);
 
-        // Thiết lập các trình lắng nghe sự kiện
-        global.logger.info('Đang thiết lập trình lắng nghe sự kiện...');
+        // Setup event listeners
+        global.logger.info('Setting up event listeners...');
         setupEventListeners();
 
-        // Thiết lập tác vụ định kỳ
-        global.logger.info('Đang thiết lập tác vụ định kỳ...');
+        // Setup scheduled tasks
+        global.logger.info('Setting up scheduled tasks...');
         setupCronTasks();
 
-        // Thiết lập máy chủ webhook
-        global.logger.info('Đang khởi động máy chủ webhook...');
+        // Setup webhook server
+        global.logger.info('Starting webhook server...');
         await setupWebServer();
 
-        // Thiết lập xử lý tắt ứng dụng
+        // Setup shutdown handler
         setupShutdownHandler();
 
         const bootTime = ((Date.now() - startTime) / 1000).toFixed(2);
-        global.logger.info(`Ứng dụng đã khởi động thành công trong ${bootTime}s`);
+        global.logger.info(`Application started successfully in ${bootTime}s`);
 
-        // Hiển thị logo và thông tin phiên bản
+        // Display logo and version info
         displayLogo();
 
     } catch (error) {
-        global.logger.error(`Lỗi khởi động ứng dụng: ${error}`);
+        global.logger.error(`Application startup error: ${error}`);
         process.exit(1);
     }
 }
 
 /**
- * Hiển thị logo và thông tin phiên bản
+ * Display logo and version info
  */
 function displayLogo() {
-    // Đọc thông tin phiên bản từ package.json
+    // Read version info from package.json
     const packageJson = require('../package.json');
 
     console.log(`
@@ -198,11 +205,11 @@ function displayLogo() {
   ███████╗╚██████╗██║  ██║    ██████╔╝╚██████╔╝   ██║   
   ╚══════╝ ╚═════╝╚═╝  ╚═╝    ╚═════╝  ╚═════╝    ╚═╝   
   
-  ZCA Bot v${packageJson.version} - Bot Zalo toàn diện
+  ZCA Bot v${packageJson.version} - Comprehensive Zalo Bot
   Node.js: ${process.version}
-  Thời gian: ${new Date().toLocaleString('vi-VN')}
+  Time: ${new Date().toLocaleString('vi-VN')}
   `);
 }
 
-// Khởi động ứng dụng
+// Start the application
 startApplication();

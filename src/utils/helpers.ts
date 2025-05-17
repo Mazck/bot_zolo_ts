@@ -3,10 +3,10 @@ import { Command } from '../types';
 import global from '../global';
 
 /**
- * Phân tích cú pháp lệnh
- * @param text Nội dung tin nhắn
- * @param prefix Tiền tố lệnh
- * @returns Object chứa lệnh và tham số
+ * Parses a command from text
+ * @param text Message text
+ * @param prefix Command prefix
+ * @returns Command and arguments, or null if not a command
  */
 export function parseCommand(text: string, prefix: string): { command: string, args: string[] } | null {
     if (!text.startsWith(prefix)) {
@@ -20,17 +20,29 @@ export function parseCommand(text: string, prefix: string): { command: string, a
 }
 
 /**
- * Tạo mã UUID ngẫu nhiên
- * @returns Chuỗi UUID
+ * Generates a UUID
+ * @returns Random UUID string
  */
 export function generateUUID(): string {
     return crypto.randomUUID();
 }
 
 /**
- * Tạo mã thanh toán
- * @param prefix Tiền tố
- * @returns Mã thanh toán
+ * Generates a random key
+ * @param length Length of the key
+ * @returns Random alphanumeric string
+ */
+export function generateRandomKey(length: number = 16): string {
+    return crypto.randomBytes(length)
+        .toString('base64')
+        .replace(/[+/=]/g, '')  // Remove non-alphanumeric characters
+        .substring(0, length);   // Ensure exact length
+}
+
+/**
+ * Generates a payment code
+ * @param prefix Payment code prefix
+ * @returns Payment code
  */
 export function generatePaymentCode(prefix: string = 'PAYMENT'): string {
     const timestamp = Date.now().toString(36);
@@ -39,16 +51,16 @@ export function generatePaymentCode(prefix: string = 'PAYMENT'): string {
 }
 
 /**
- * Tìm lệnh theo tên hoặc bí danh
- * @param commandName Tên hoặc bí danh lệnh
- * @returns Lệnh tương ứng hoặc undefined
+ * Finds a command by name or alias
+ * @param commandName Command name or alias
+ * @returns Command object or undefined
  */
 export function findCommand(commandName: string): Command | undefined {
-    // Tìm lệnh trực tiếp
-    let command = global.commands.get(commandName);
+    // Find direct command match
+    let command = global.commands?.get(commandName);
 
-    // Nếu không tìm thấy, kiểm tra bí danh
-    if (!command) {
+    // Check aliases if no direct match
+    if (!command && global.commands) {
         for (const [name, cmd] of global.commands.entries()) {
             if (cmd.aliases && cmd.aliases.includes(commandName)) {
                 command = cmd;
@@ -61,9 +73,9 @@ export function findCommand(commandName: string): Command | undefined {
 }
 
 /**
- * Định dạng thời gian còn lại
- * @param endDate Thời gian kết thúc
- * @returns Chuỗi định dạng thời gian còn lại
+ * Formats remaining time in a human readable way
+ * @param endDate End date/time
+ * @returns Formatted time string
  */
 export function formatTimeRemaining(endDate: Date): string {
     const now = new Date();
@@ -89,6 +101,7 @@ export function formatTimeRemaining(endDate: Date): string {
 export default {
     parseCommand,
     generateUUID,
+    generateRandomKey,
     generatePaymentCode,
     findCommand,
     formatTimeRemaining

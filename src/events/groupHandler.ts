@@ -1,16 +1,15 @@
 import { GroupEventType } from 'zca-js';
-import { createOrUpdateUser } from '../database/models/user';
-import { createOrUpdateGroup } from '../database/models/group';
+import { userService, groupService } from '../database/services';
 import { BOT_CONFIG } from '../config';
 import { sendTextMessage, sendSuccess } from '../utils/messageHelper';
 import global from '../global';
 
 /**
- * Thiết lập trình lắng nghe sự kiện nhóm
+ * Sets up the group event listener
  */
 export function setupGroupEventListener() {
     if (!global.bot) {
-        global.logger.error('Bot chưa được khởi tạo, không thể thiết lập group event listener');
+        global.logger.error('Bot not initialized, cannot set up group event listener');
         return;
     }
 
@@ -18,21 +17,20 @@ export function setupGroupEventListener() {
         try {
             const groupId = data.threadId;
 
-            // Cập nhật thông tin nhóm
+            // Update group information
             try {
-                // Check that global.bot is still available
                 if (global.bot) {
                     const groupInfo = await global.bot.getGroupInfo(groupId);
-                    await createOrUpdateGroup(groupId, groupInfo.name);
+                    await groupService().createOrUpdateGroup(groupId, groupInfo.name);
                 } else {
                     global.logger.error('Bot not available when trying to update group info');
                     return;
                 }
             } catch (error) {
-                global.logger.error(`Lỗi cập nhật thông tin nhóm: ${error}`);
+                global.logger.error(`Error updating group info: ${error}`);
             }
 
-            // Xử lý các loại sự kiện nhóm
+            // Process different group event types
             switch (data.type) {
                 case GroupEventType.JOIN:
                     await handleJoinEvent(data, groupId);
@@ -67,165 +65,160 @@ export function setupGroupEventListener() {
                     break;
 
                 default:
-                    // Ghi log các sự kiện khác
-                    global.logger.info(`Nhận được sự kiện nhóm khác: ${data.type} - ${JSON.stringify(data.data)}`);
+                    // Log other events
+                    global.logger.info(`Received other group event: ${data.type} - ${JSON.stringify(data.data)}`);
                     break;
             }
 
         } catch (error) {
-            global.logger.error(`Lỗi xử lý sự kiện nhóm: ${error}`);
+            global.logger.error(`Error processing group event: ${error}`);
         }
     });
 
-    global.logger.info('Đã thiết lập group_event listener');
+    global.logger.info('Group event listener setup complete');
 }
 
 /**
- * Xử lý sự kiện người dùng tham gia nhóm
+ * Handles user join events
  */
 async function handleJoinEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleJoinEvent');
             return;
         }
 
         for (const userId of data.data.userIDs) {
-            // Kiểm tra nếu người tham gia là bot
+            // Check if the joining user is the bot
             if (global.bot.id === userId) {
-                // Bot vừa được thêm vào nhóm
+                // Bot was just added to the group
                 await sendTextMessage(
-                    `👋 Xin chào! Tôi là ${BOT_CONFIG.botName} 🤖\n\n` +
-                    `Cảm ơn đã mời tôi vào nhóm. Để sử dụng các tính năng của bot, ` +
-                    `nhóm cần kích hoạt dịch vụ trước.\n\n` +
-                    `Gõ "${BOT_CONFIG.prefix}rent" để xem thông tin các gói dịch vụ và thuê bot.`,
+                    `👋 Hello! I am ${BOT_CONFIG.botName} 🤖\n\n` +
+                    `Thank you for adding me to the group. To use my features, ` +
+                    `the group needs to activate the service first.\n\n` +
+                    `Type "${BOT_CONFIG.prefix}rent" to see service packages and rent the bot.`,
                     groupId,
                     true
                 );
                 continue;
             }
 
-            // Lấy thông tin người dùng
+            // Get user information
             const userInfo = await global.bot.getUserInfo(userId);
-            await createOrUpdateUser(userId, userInfo.displayName);
+            await userService().createOrUpdateUser(userId, userInfo.displayName);
 
-            // Gửi lời chào
+            // Send welcome message
             await sendTextMessage(
-                `👋 Chào mừng ${userInfo.displayName} đã tham gia nhóm!`,
+                `👋 Welcome ${userInfo.displayName} to the group!`,
                 groupId,
                 true
             );
         }
     } catch (error) {
-        global.logger.error(`Lỗi xử lý thành viên mới tham gia: ${error}`);
+        global.logger.error(`Error handling join event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện người dùng rời nhóm
+ * Handles user leave events
  */
 async function handleLeaveEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleLeaveEvent');
             return;
         }
 
         for (const userId of data.data.userIDs) {
-            // Lấy thông tin người dùng
+            // Get user information
             const userInfo = await global.bot.getUserInfo(userId);
 
-            // Gửi thông báo
+            // Send notification
             await sendTextMessage(
-                `👋 ${userInfo.displayName} đã rời khỏi nhóm.`,
+                `👋 ${userInfo.displayName} has left the group.`,
                 groupId,
                 true
             );
         }
     } catch (error) {
-        global.logger.error(`Lỗi xử lý thành viên rời nhóm: ${error}`);
+        global.logger.error(`Error handling leave event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện cập nhật nhóm
+ * Handles group update events
  */
 async function handleUpdateEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleUpdateEvent');
             return;
         }
 
-        // Kiểm tra nếu là cập nhật tên nhóm
+        // Check if it's a name update
         if (data.data.update_type === 'name') {
-            // Cập nhật tên nhóm trong DB
+            // Update group name in DB
             const groupInfo = await global.bot.getGroupInfo(groupId);
-            await createOrUpdateGroup(groupId, groupInfo.name);
+            await groupService().createOrUpdateGroup(groupId, groupInfo.name);
 
-            // Gửi thông báo
+            // Send notification
             await sendTextMessage(
-                `📝 Tên nhóm đã được đổi thành "${groupInfo.name}".`,
+                `📝 Group name changed to "${groupInfo.name}".`,
                 groupId,
                 true
             );
         }
-        // Kiểm tra nếu là cập nhật ảnh nhóm
+        // Check if it's an avatar update
         else if (data.data.update_type === 'avatar') {
             await sendTextMessage(
-                `🖼️ Ảnh đại diện nhóm đã được cập nhật.`,
+                `🖼️ Group avatar has been updated.`,
                 groupId,
                 true
             );
         }
     } catch (error) {
-        global.logger.error(`Lỗi xử lý cập nhật nhóm: ${error}`);
+        global.logger.error(`Error handling update event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện thêm quản trị viên
+ * Handles admin addition events
  */
 async function handleAddAdminEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleAddAdminEvent');
             return;
         }
 
         const userInfo = await global.bot.getUserInfo(data.data.userID);
-        if (data.data.adminType === 1) { // Trưởng nhóm
+        if (data.data.adminType === 1) { // Group owner
             await sendTextMessage(
-                `🎖️ ${userInfo.displayName} đã trở thành trưởng nhóm.`,
+                `🎖️ ${userInfo.displayName} is now the group owner.`,
                 groupId,
                 true
             );
-        } else { // Phó nhóm
+        } else { // Group admin
             await sendTextMessage(
-                `👮 ${userInfo.displayName} đã trở thành phó nhóm.`,
+                `👮 ${userInfo.displayName} is now a group admin.`,
                 groupId,
                 true
             );
         }
 
-        // Cập nhật quyền trong DB nếu cần
-        await createOrUpdateUser(data.data.userID, userInfo.displayName, 'manager');
+        // Update user permission in DB
+        await userService().createOrUpdateUser(data.data.userID, userInfo.displayName, 'manager');
 
     } catch (error) {
-        global.logger.error(`Lỗi xử lý thêm quản trị viên: ${error}`);
+        global.logger.error(`Error handling add admin event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện gỡ quản trị viên
+ * Handles admin removal events
  */
 async function handleRemoveAdminEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleRemoveAdminEvent');
             return;
@@ -233,25 +226,24 @@ async function handleRemoveAdminEvent(data, groupId) {
 
         const userInfo = await global.bot.getUserInfo(data.data.userID);
         await sendTextMessage(
-            `👋 ${userInfo.displayName} đã bị gỡ quyền phó nhóm.`,
+            `👋 ${userInfo.displayName} is no longer a group admin.`,
             groupId,
             true
         );
 
-        // Cập nhật quyền trong DB nếu cần
-        await createOrUpdateUser(data.data.userID, userInfo.displayName, 'user');
+        // Update user permission in DB
+        await userService().createOrUpdateUser(data.data.userID, userInfo.displayName, 'user');
 
     } catch (error) {
-        global.logger.error(`Lỗi xử lý gỡ quản trị viên: ${error}`);
+        global.logger.error(`Error handling remove admin event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện xóa thành viên
+ * Handles member removal events
  */
 async function handleRemoveMemberEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleRemoveMemberEvent');
             return;
@@ -260,22 +252,21 @@ async function handleRemoveMemberEvent(data, groupId) {
         for (const userId of data.data.userIDs) {
             const userInfo = await global.bot.getUserInfo(userId);
             await sendTextMessage(
-                `🚫 ${userInfo.displayName} đã bị xóa khỏi nhóm.`,
+                `🚫 ${userInfo.displayName} has been removed from the group.`,
                 groupId,
                 true
             );
         }
     } catch (error) {
-        global.logger.error(`Lỗi xử lý xóa thành viên: ${error}`);
+        global.logger.error(`Error handling remove member event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện chặn thành viên
+ * Handles member block events
  */
 async function handleBlockMemberEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleBlockMemberEvent');
             return;
@@ -283,21 +274,20 @@ async function handleBlockMemberEvent(data, groupId) {
 
         const userInfo = await global.bot.getUserInfo(data.data.userID);
         await sendTextMessage(
-            `🔒 ${userInfo.displayName} đã bị chặn khỏi nhóm.`,
+            `🔒 ${userInfo.displayName} has been blocked from the group.`,
             groupId,
             true
         );
     } catch (error) {
-        global.logger.error(`Lỗi xử lý chặn thành viên: ${error}`);
+        global.logger.error(`Error handling block member event: ${error}`);
     }
 }
 
 /**
- * Xử lý sự kiện yêu cầu tham gia
+ * Handles join request events
  */
 async function handleJoinRequestEvent(data, groupId) {
     try {
-        // Check if bot is available
         if (!global.bot) {
             global.logger.error('Bot not available in handleJoinRequestEvent');
             return;
@@ -305,13 +295,13 @@ async function handleJoinRequestEvent(data, groupId) {
 
         const userInfo = await global.bot.getUserInfo(data.data.userID);
 
-        // Thông báo cho quản trị viên nhóm
+        // Notify group admins
         await sendTextMessage(
-            `📩 ${userInfo.displayName} đã yêu cầu tham gia nhóm.`,
+            `📩 ${userInfo.displayName} has requested to join the group.`,
             groupId,
             true
         );
     } catch (error) {
-        global.logger.error(`Lỗi xử lý yêu cầu tham gia: ${error}`);
+        global.logger.error(`Error handling join request event: ${error}`);
     }
 }

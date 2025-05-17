@@ -1,51 +1,41 @@
-import { addCommandUsage, isUserSpamming } from '../database/models/commandTracker';
+import { commandTrackingService } from '../database/services';
+import { ANTI_SPAM_CONFIG } from '../config';
 import global from '../global';
 
-// Cấu hình chống spam
-const SPAM_CONFIG = {
-    // Số lệnh tối đa trong khoảng thời gian
-    maxCommands: 5,
-    // Khoảng thời gian (milliseconds) - 10 giây
-    timeWindow: 10 * 1000,
-    // Thời gian cooldown khi phát hiện spam (milliseconds) - 60 giây
-    cooldownTime: 60 * 1000,
-    // Các lệnh không áp dụng chống spam
-    excludedCommands: ['help', 'status']
-};
-
 /**
- * Kiểm tra chống spam lệnh
+ * Checks if a user is spamming commands
  * 
- * @param userId ID người dùng
- * @param command Thông tin lệnh
- * @returns true nếu không phải spam, false nếu đang spam
+ * @param userId ID of the user to check
+ * @param command Command being executed
+ * @returns true if not spamming, false if detected as spam
  */
-export async function antiSpamCheck(userId, command) {
+export async function antiSpamCheck(userId: string, command: { name: string }): Promise<boolean> {
     try {
-        // Nếu lệnh được loại trừ khỏi kiểm tra spam
-        if (SPAM_CONFIG.excludedCommands.includes(command.name)) {
+        // Skip check for excluded commands
+        if (ANTI_SPAM_CONFIG.excludedCommands.includes(command.name)) {
             return true;
         }
 
-        // Kiểm tra người dùng có đang spam không
-        const isSpamming = await isUserSpamming(
+        // Check if user is spamming
+        const isSpamming = await commandTrackingService().isUserSpamming(
             userId,
-            SPAM_CONFIG.maxCommands,
-            SPAM_CONFIG.timeWindow,
-            SPAM_CONFIG.cooldownTime
+            command.name,
+            ANTI_SPAM_CONFIG.maxCommands,
+            ANTI_SPAM_CONFIG.timeWindow,
+            ANTI_SPAM_CONFIG.cooldownTime
         );
 
         if (isSpamming) {
-            global.logger.warn(`Phát hiện spam từ người dùng ${userId} với lệnh ${command.name}`);
+            global.logger.warn(`Spam detected from user ${userId} for command ${command.name}`);
             return false;
         }
 
-        // Thêm lượt sử dụng lệnh mới
-        await addCommandUsage(userId, command.name);
+        // Add this command usage to tracking
+        await commandTrackingService().addCommandUsage(userId, command.name);
         return true;
 
     } catch (error) {
-        global.logger.error(`Lỗi kiểm tra chống spam cho người dùng ${userId}: ${error}`);
-        return true; // Cho phép nếu có lỗi để tránh chặn người dùng vô cớ
+        global.logger.error(`Error in anti-spam check for user ${userId}: ${error}`);
+        return true; // Allow on error to avoid blocking legitimate users
     }
 }
