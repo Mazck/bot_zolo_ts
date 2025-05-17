@@ -20,10 +20,11 @@ export async function commandMiddleware(
         groupId?: string;
         isGroup: boolean;
         command: any;
+        message?: any;
     },
     execute: () => Promise<void>
 ): Promise<void> {
-    const { userId, groupId, isGroup, command } = params;
+    const { userId, groupId, isGroup, command, message } = params;
 
     // Validate required parameters
     if (!userId || !command) {
@@ -32,11 +33,14 @@ export async function commandMiddleware(
     }
 
     try {
+        // Log command attempt for debugging
+        global.logger.debug(`User ${userId} attempting command: ${command.name} in ${isGroup ? 'group ' + groupId : 'private chat'}`);
+
         // 1. Anti-spam check
         const notSpamming = await antiSpamCheck(userId, command);
         if (!notSpamming) {
             await sendTextMessage(
-                'Bạn đang gửi lệnh quá nhanh. Vui lòng thử lại sau.',
+                'Bạn đang gửi lệnh quá nhanh. Vui lòng thử lại sau vài giây.',
                 isGroup && groupId ? groupId : userId,
                 isGroup
             );
@@ -63,7 +67,8 @@ export async function commandMiddleware(
             return;
         }
 
-        // Execute command if all checks pass
+        // All checks passed - execute command
+        global.logger.debug(`Command ${command.name} passed all checks for user ${userId}`);
         await execute();
 
     } catch (error) {

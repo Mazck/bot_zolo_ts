@@ -1,9 +1,3 @@
-/**
- * Event handler setup
- * 
- * This file sets up all event listeners for the bot
- */
-
 import { setupMessageListener } from './messageHandler';
 import { setupGroupEventListener } from './groupHandler';
 import { setupReactionListener } from './reactionHandler';

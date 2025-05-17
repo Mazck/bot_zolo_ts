@@ -36,13 +36,13 @@ export class User {
     @Column({ default: false })
     banned: boolean;
 
-    @Column({ nullable: true })
+    @Column({ nullable: true, type: 'text' })
     banReason: string | null;
 
     @Column({ nullable: true })
     banTime: Date;
 
-    @Column({ nullable: true, type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column({ nullable: true })
     lastActive: Date;
 
     @Column({ nullable: true })
@@ -123,7 +123,7 @@ export class Group {
     @Column({ default: false })
     banned: boolean;
 
-    @Column({ nullable: true })
+    @Column({ nullable: true, type: 'text' })
     banReason: string | null;
 
     @Column({ type: 'simple-json', default: '{}' })
@@ -171,7 +171,7 @@ export class GroupUser {
     @Column({ default: 'member' }) // 'member', 'admin', 'creator'
     role: string;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column()
     joinedAt: Date;
 
     @Column({ default: false })
@@ -273,7 +273,7 @@ export class Payment {
     @Column({ default: 'pending' }) // 'pending' | 'completed' | 'failed'
     status: string;
 
-    @Column({ nullable: true })
+    @Column({ nullable: true, type: 'text' })
     description: string;
 
     @CreateDateColumn()
@@ -307,7 +307,7 @@ export class GroupSubscription {
     @Column()
     activatedBy: string;
 
-    @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+    @Column()
     startDate: Date;
 
     @Column()

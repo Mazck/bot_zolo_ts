@@ -7,7 +7,7 @@ import path from 'path';
 /**
  * Creates a DataSource for connecting to the database
  */
-export function createDataSource(): DataSource {
+export function createDataSource(options: any = {}): DataSource {
     const isProduction = process.env.NODE_ENV === 'production';
 
     // Determine database type and options
@@ -16,6 +16,7 @@ export function createDataSource(): DataSource {
         entities,
         synchronize: !isProduction, // Auto-sync schema in development only
         logging: DB_CONFIG.logging,
+        ...options
     };
 
     if (isSQLite) {
@@ -47,50 +48,54 @@ export async function initializeDatabase(): Promise<DataSource> {
         const startTime = Date.now();
         global.logger.info('Initializing database connection...');
 
-        // Create DataSource
-        const dataSource = createDataSource();
-
+        // First attempt: Try with synchronize on
         try {
-            // Initialize connection
+            const dataSource = createDataSource();
             await dataSource.initialize();
 
             const endTime = Date.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             global.logger.info(`Connected to ${DB_CONFIG.type} database successfully in ${duration}s`);
 
-            // Store the connection in the global object
             global.db = dataSource;
-
             return dataSource;
-        } catch (error: any) {
-            // If the error is related to schema sync, try to run manual migration
-            if (error.message.includes('Data type') || error.message.includes('column') || error.message.includes('table')) {
-                global.logger.warn('Schema synchronization failed, attempting manual migration...');
+        } catch (syncError: any) {
+            global.logger.warn(`Schema synchronization failed: ${syncError.message}`);
 
-                // Try manual table creation
+            // Second attempt: Try with synchronize off
+            try {
+                global.logger.info('Trying with synchronize disabled...');
+                const dataSourceNoSync = createDataSource({ synchronize: false });
+                await dataSourceNoSync.initialize();
+
+                global.logger.info('Connected to database with synchronize disabled');
+                global.db = dataSourceNoSync;
+                return dataSourceNoSync;
+            } catch (noSyncError: any) {
+                global.logger.warn(`Connection with synchronize disabled failed: ${noSyncError.message}`);
+
+                // Third attempt: Try manual migration
+                global.logger.info('Attempting manual migration...');
                 try {
                     const { createTables } = require('./migrations/manual');
                     await createTables();
 
-                    // Try again with synchronize disabled
-                    dataSource.options.synchronize = false;
-                    await dataSource.initialize();
+                    // Try connecting again after manual tables created
+                    const dataSourceAfterMigration = createDataSource({ synchronize: false });
+                    await dataSourceAfterMigration.initialize();
 
                     global.logger.info('Connected to database after manual migration');
-                    global.db = dataSource;
-                    return dataSource;
-                } catch (migrationError) {
-                    global.logger.error(`Manual migration failed: ${migrationError}`);
+                    global.db = dataSourceAfterMigration;
+                    return dataSourceAfterMigration;
+                } catch (migrationError: any) {
+                    global.logger.error(`Manual migration failed: ${migrationError.message}`);
                     throw migrationError;
                 }
             }
-
-            // If not a schema error or manual migration failed, throw the original error
-            throw error;
         }
-    } catch (error) {
-        global.logger.error(`Database connection error: ${error}`);
-        throw new Error(`Failed to connect to database: ${error}`);
+    } catch (error: any) {
+        global.logger.error(`Database connection error: ${error.message}`);
+        throw new Error(`Failed to connect to database: ${error.message}`);
     }
 }
 

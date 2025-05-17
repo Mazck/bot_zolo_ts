@@ -1,9 +1,3 @@
-/**
- * Initialize database tables manually
- * 
- * This script creates database tables explicitly for SQLite compatibility
- */
-
 import { DataSource } from 'typeorm';
 import { createLogger } from '../../utils/logger';
 import path from 'path';
@@ -51,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     "banned" BOOLEAN DEFAULT FALSE,
     "banReason" TEXT,
     "banTime" DATETIME,
-    "lastActive" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    "lastActive" DATETIME,
     "phoneNumber" TEXT,
     "gender" INTEGER,
     "data" TEXT DEFAULT '{}',
@@ -73,11 +67,11 @@ CREATE TABLE IF NOT EXISTS "groups" (
     "activatedAt" DATETIME,
     "expiresAt" DATETIME,
     "creatorId" TEXT,
-    "adminIdsJson" TEXT DEFAULT '[]',
-    "settingsJson" TEXT DEFAULT '{}',
+    "adminIds" TEXT DEFAULT '[]',
+    "settings" TEXT DEFAULT '{}',
     "banned" BOOLEAN DEFAULT FALSE,
     "banReason" TEXT,
-    "dataJson" TEXT DEFAULT '{}',
+    "data" TEXT DEFAULT '{}',
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -92,7 +86,7 @@ CREATE TABLE IF NOT EXISTS "group_users" (
     "role" TEXT DEFAULT 'member',
     "joinedAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "isMuted" BOOLEAN DEFAULT FALSE,
-    "dataJson" TEXT DEFAULT '{}',
+    "data" TEXT DEFAULT '{}',
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE("userId", "groupId"),
@@ -142,7 +136,7 @@ CREATE TABLE IF NOT EXISTS "group_subscriptions" (
     "startDate" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "endDate" DATETIME NOT NULL,
     "isActive" BOOLEAN DEFAULT TRUE,
-    "keysUsedJson" TEXT DEFAULT '[]',
+    "keysUsed" TEXT DEFAULT '[]',
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY("groupId") REFERENCES "groups"("id") ON DELETE CASCADE,
@@ -155,6 +149,8 @@ CREATE TABLE IF NOT EXISTS "command_usage" (
     "userId" TEXT NOT NULL,
     "commandName" TEXT NOT NULL,
     "usedAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY("userId") REFERENCES "users"("id") ON DELETE CASCADE
 );
 
@@ -190,7 +186,10 @@ CREATE INDEX IF NOT EXISTS "idx_command_usage_usedAt" ON "command_usage" ("usedA
         global.logger.info('Manual table creation completed successfully');
     } catch (error) {
         global.logger.error(`Error creating tables: ${error}`);
-        process.exit(1);
+        if (dataSource.isInitialized) {
+            await dataSource.destroy();
+        }
+        throw error;
     }
 }
 

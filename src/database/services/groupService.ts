@@ -54,6 +54,48 @@ export class GroupService extends DatabaseService<Group> {
     }
 
     /**
+     * Updates group from Zalo API data
+     * @param groupId Group ID
+     * @param apiData API data from Zalo getGroupInfo
+     */
+    async updateGroupFromApiData(groupId: string, apiData: any): Promise<Group | null> {
+        try {
+            if (!apiData || !apiData.gridInfoMap || !apiData.gridInfoMap[groupId]) {
+                global.logger.warn(`No valid API data for group ${groupId}`);
+                return null;
+            }
+
+            const groupData = apiData.gridInfoMap[groupId];
+            let group = await this.findGroupById(groupId);
+
+            if (!group) {
+                // Create new group if it doesn't exist
+                group = this.getRepository().create({
+                    id: groupId,
+                    name: groupData.name || `Group_${groupId.substring(0, 8)}`,
+                    description: groupData.desc || '',
+                    avatar: groupData.avt || '',
+                    creatorId: groupData.creatorId || '',
+                    adminIds: groupData.adminIds || [],
+                    isActive: false
+                });
+            } else {
+                // Update existing group with API data
+                group.name = groupData.name || group.name;
+                group.description = groupData.desc || group.description;
+                group.avatar = groupData.avt || group.avatar;
+                group.creatorId = groupData.creatorId || group.creatorId;
+                group.adminIds = groupData.adminIds || group.adminIds;
+            }
+
+            return await this.getRepository().save(group);
+        } catch (error) {
+            global.logger.error(`Error updating group from API data: ${error}`);
+            return null;
+        }
+    }
+
+    /**
      * Activates a group with a specified duration
      */
     async activateGroup(

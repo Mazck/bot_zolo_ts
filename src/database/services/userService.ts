@@ -67,6 +67,53 @@ export class UserService extends DatabaseService<User> {
     }
 
     /**
+     * Updates user from Zalo API data
+     * @param userId User ID
+     * @param apiData API data from Zalo getUserInfo
+     */
+    async updateUserFromApiData(userId: string, apiData: any): Promise<User | null> {
+        try {
+            if (!apiData || !apiData.changed_profiles || !apiData.changed_profiles[userId]) {
+                global.logger.warn(`No valid API data for user ${userId}`);
+                return null;
+            }
+
+            const profile = apiData.changed_profiles[userId];
+            let user = await this.findUserById(userId);
+
+            if (!user) {
+                // Create new user if it doesn't exist
+                user = this.getRepository().create({
+                    id: userId,
+                    displayName: profile.displayName || profile.zaloName || `User_${userId.substring(0, 8)}`,
+                    username: profile.username || '',
+                    zaloName: profile.zaloName || '',
+                    avatar: profile.avatar || '',
+                    gender: profile.gender !== undefined ? profile.gender : null,
+                    phoneNumber: profile.phoneNumber || '',
+                    // Check if user is in ADMIN_IDS list
+                    permission: ADMIN_IDS.includes(userId) ? 'admin' : 'user',
+                    lastActive: new Date(profile.lastActionTime || Date.now())
+                });
+            } else {
+                // Update existing user with API data
+                user.displayName = profile.displayName || profile.zaloName || user.displayName;
+                user.username = profile.username || user.username;
+                user.zaloName = profile.zaloName || user.zaloName;
+                user.avatar = profile.avatar || user.avatar;
+                user.gender = profile.gender !== undefined ? profile.gender : user.gender;
+                user.phoneNumber = profile.phoneNumber || user.phoneNumber;
+                user.lastActive = new Date(profile.lastActionTime || Date.now());
+            }
+
+            return await this.getRepository().save(user);
+        } catch (error) {
+            global.logger.error(`Error updating user from API data: ${error}`);
+            return null;
+        }
+    }
+
+    /**
      * Updates user permission
      */
     async updateUserPermission(
