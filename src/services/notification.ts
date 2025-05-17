@@ -1,5 +1,5 @@
 import { TextStyle } from '../types';
-import { sendTextMessage, sendStyledMessage, sendAttachmentMessage } from '../utils/messageHelper';
+import { sendTextMessage, sendStyledMessage, sendAttachmentMessage, sendImportantMessage } from '../utils/messageHelper';
 import { userService, groupService } from '../database/services';
 import { createPaymentLink, generateOrderCode } from './payos';
 import { formatCurrency } from '../utils/formatter';
@@ -318,8 +318,32 @@ export async function sendSuccessNotification(
             }
         ];
 
-        // Gửi tin nhắn thông báo thành công
-        await sendStyledMessage(message, groupId, styles, true);
+        // Cố gắng gửi thông báo theo nhiều cách khác nhau để đảm bảo người dùng nhận được
+        try {
+            // Cách 1: Gửi tin nhắn có định dạng
+            await sendStyledMessage(message, groupId, styles, true);
+        } catch (styleError) {
+            global.logger.error(`Lỗi gửi tin nhắn có định dạng: ${styleError}`);
+
+            try {
+                // Cách 2: Gửi tin nhắn thường nếu tin nhắn có định dạng thất bại
+                await sendTextMessage(message, groupId, true);
+            } catch (textError) {
+                global.logger.error(`Lỗi gửi tin nhắn thường: ${textError}`);
+
+                try {
+                    // Cách 3: Gửi tin nhắn quan trọng nếu cả hai cách trên thất bại
+                    await sendImportantMessage(
+                        `THANH TOÁN THÀNH CÔNG!\nNhóm đã được ${isExtend ? "gia hạn" : "kích hoạt"} với gói ${packageInfo.name}.\nHết hạn: ${expiryDate.toLocaleString('vi-VN')}`,
+                        groupId,
+                        true
+                    );
+                } catch (importantError) {
+                    global.logger.error(`Lỗi gửi tin nhắn quan trọng: ${importantError}`);
+                    return false;
+                }
+            }
+        }
 
         global.logger.info(`Đã gửi thông báo thành công cho nhóm: ${groupId}, gói: ${packageType}`);
         return true;

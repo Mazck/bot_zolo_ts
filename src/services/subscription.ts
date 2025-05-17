@@ -1,9 +1,10 @@
 import { SUBSCRIPTION_PACKAGES, PackageType } from '../config';
 import { paymentService, groupService, subscriptionService } from '../database/services';
 import { createPaymentLink, generateOrderCode } from './payos';
-import { sendTextMessage } from '../utils/messageHelper';
+import { sendTextMessage, sendError } from '../utils/messageHelper';
 import { Package } from '../types';
 import global from '../global';
+import { sendSuccessNotification } from './notification';
 
 /**
  * Initializes a subscription process for a group
@@ -81,12 +82,18 @@ export async function initializeSubscription(
  * @param transactionId PayOS transaction ID
  * @returns True if processing was successful
  */
+/**
+ * Xử lý thanh toán thành công
+ * @param paymentId ID của payment
+ * @param transactionId ID giao dịch PayOS
+ * @returns True nếu xử lý thành công
+ */
 export async function processSuccessfulPayment(
     paymentId: string,
     transactionId: string
 ): Promise<boolean> {
     try {
-        // Update payment status
+        // Cập nhật trạng thái thanh toán
         const payment = await paymentService().updatePaymentStatus(
             paymentId,
             'completed',
@@ -94,56 +101,64 @@ export async function processSuccessfulPayment(
         );
 
         if (!payment) {
-            throw new Error(`Payment not found: ${paymentId}`);
+            throw new Error(`Không tìm thấy thanh toán: ${paymentId}`);
         }
 
-        // Get package information
+        // Lấy thông tin gói dịch vụ
         const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType as PackageType];
-
         if (!packageInfo) {
-            throw new Error(`Package not found: ${payment.packageType}`);
+            throw new Error(`Không tìm thấy gói dịch vụ: ${payment.packageType}`);
         }
 
-        // Activate group subscription
-        await subscriptionService().createSubscription(
+        // Kích hoạt hoặc gia hạn đăng ký cho nhóm
+        const subscription = await subscriptionService().createSubscription(
             payment.groupId,
             payment.userId,
             packageInfo.days
         );
 
-        // Get updated group with new expiration date
+        if (!subscription) {
+            throw new Error(`Không thể tạo đăng ký cho nhóm: ${payment.groupId}`);
+        }
+
+        // Lấy thông tin nhóm đã được cập nhật với ngày hết hạn mới
         const group = await groupService().findGroupById(payment.groupId);
-
         if (!group) {
-            throw new Error(`Group not found: ${payment.groupId}`);
+            throw new Error(`Không tìm thấy nhóm: ${payment.groupId}`);
         }
 
-        // Send notification
-        if (global.bot) {
-            const isExtended = group.activatedAt &&
-                (new Date().getTime() - (group.activatedAt?.getTime() || 0) > 3600000);
+        // Gửi thông báo thành công
+        await sendSuccessNotification(
+            payment.groupId,
+            payment.packageType as PackageType,
+            transactionId,
+            group.expiresAt || new Date()
+        );
 
-            const actionText = isExtended ? "EXTENSION" : "ACTIVATION";
-
-            const message = `🎉 ${actionText} SUCCESSFUL!\n\n` +
-                `✅ The group has been ${isExtended ? "extended" : "activated"} with ${packageInfo.name}.\n` +
-                `✅ Duration: ${packageInfo.days} days\n` +
-                `✅ Expires: ${group.expiresAt?.toLocaleString('vi-VN')}\n\n` +
-                `💰 Amount: ${packageInfo.price.toLocaleString('vi-VN')}đ\n` +
-                `🧾 Transaction ID: ${transactionId}\n\n` +
-                `Thank you for using our service!`;
-
-            await sendTextMessage(message, payment.groupId, true);
-        }
-
-        global.logger.info(`Successfully activated group ${payment.groupId} with package ${payment.packageType}`);
+        global.logger.info(`Xử lý thanh toán thành công cho nhóm ${payment.groupId} với gói ${payment.packageType}`);
         return true;
     } catch (error) {
-        global.logger.error(`Error processing payment: ${error}`);
+        global.logger.error(`Lỗi xử lý thanh toán: ${error}`);
+
+        // Thử gửi thông báo lỗi tới nhóm
+        try {
+            // Lấy lại thông tin thanh toán để có thể gửi thông báo
+            const paymentRecord = await paymentService().findById(paymentId);
+
+            if (paymentRecord && paymentRecord.groupId) {
+                await sendError(
+                    `Đã xảy ra lỗi khi xử lý thanh toán. Vui lòng liên hệ ADMIN để được hỗ trợ.`,
+                    paymentRecord.groupId,
+                    true
+                );
+            }
+        } catch (notifyError) {
+            global.logger.error(`Không thể gửi thông báo lỗi: ${notifyError}`);
+        }
+
         return false;
     }
 }
-
 /**
  * Checks for and deactivates expired groups
  */
