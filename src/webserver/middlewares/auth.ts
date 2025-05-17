@@ -1,8 +1,3 @@
-/**
- * File: src/webserver/middlewares/auth.ts
- * Mô tả: Middleware xác thực cho API nội bộ
- */
-
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import global from '../../global';
