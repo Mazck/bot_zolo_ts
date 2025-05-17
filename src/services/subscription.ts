@@ -42,27 +42,31 @@ export async function initializeSubscription(
             groupId,
             packageInfo.price,
             packageType,
-            orderCode
+            orderCode,
+            `${group.isActive ? 'Gia hạn' : 'Thuê'} bot ZCA - ${packageInfo.name} - Nhóm: ${group.name}`
         );
 
         if (!payment) {
             throw new Error('Failed to create payment record in database');
         }
 
-        // Prepare payment description
+        // Determine if this is a new subscription or renewal
         const isExtend = group.isActive;
-        const actionText = isExtend ? "Extend bot" : "Rent bot";
-        const description = `${packageInfo.days} days - Group: ${group.name}`;
-        console.log(description);
+        const actionText = isExtend ? "Gia hạn bot" : "Thuê bot";
+        const description = `${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${group.name || groupId}`;
+
         // Create payment link via PayOS
         const paymentLinkResponse = await createPaymentLink(
             packageInfo.price,
             orderCode,
-            description
+            description,
+            '', // buyerName
+            '', // buyerEmail
+            '', // buyerPhone
         );
 
         // Log payment creation
-        global.logger.info(`Created payment: ${packageType}, Amount: ${packageInfo.price}, Order: ${orderCode}`);
+        global.logger.info(`Created ${actionText} payment: ${packageType}, Amount: ${packageInfo.price}, Order: ${orderCode}`);
 
         // Return payment information
         return {
@@ -87,10 +91,7 @@ export async function processSuccessfulPayment(
     transactionId: string
 ): Promise<boolean> {
     try {
-        // Thêm log để theo dõi
-        global.logger.info(`Bắt đầu xử lý thanh toán thành công: ID=${paymentId}, Transaction=${transactionId}`);
-
-        // Cập nhật trạng thái thanh toán
+        // Update payment status
         const payment = await paymentService().updatePaymentStatus(
             paymentId,
             'completed',
@@ -98,61 +99,61 @@ export async function processSuccessfulPayment(
         );
 
         if (!payment) {
-            throw new Error(`Không tìm thấy thanh toán: ${paymentId}`);
+            throw new Error(`Payment not found: ${paymentId}`);
         }
 
-        global.logger.info(`Đã cập nhật trạng thái thanh toán: ${payment.id} -> completed`);
-
-        // Lấy thông tin gói dịch vụ
+        // Get package information
         const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType as PackageType];
         if (!packageInfo) {
-            throw new Error(`Không tìm thấy gói dịch vụ: ${payment.packageType}`);
+            throw new Error(`Package not found: ${payment.packageType}`);
         }
 
-        global.logger.info(`Gói dịch vụ: ${payment.packageType}, Thời hạn: ${packageInfo.days} ngày`);
+        // Check if this is a new subscription or a renewal
+        const existingSubscription = await subscriptionService().findActiveSubscription(payment.groupId);
 
-        // Kích hoạt hoặc gia hạn đăng ký cho nhóm
-        const subscription = await subscriptionService().createSubscription(
-            payment.groupId,
-            payment.userId,
-            packageInfo.days
-        );
+        let subscription;
+        if (existingSubscription) {
+            // Extend existing subscription
+            subscription = await subscriptionService().extendSubscription(
+                payment.groupId,
+                payment.userId,
+                packageInfo.days
+            );
+        } else {
+            // Create new subscription
+            subscription = await subscriptionService().createSubscription(
+                payment.groupId,
+                payment.userId,
+                packageInfo.days
+            );
+        }
 
         if (!subscription) {
-            throw new Error(`Không thể tạo đăng ký cho nhóm: ${payment.groupId}`);
+            throw new Error(`Failed to create/extend subscription for group: ${payment.groupId}`);
         }
 
-        global.logger.info(`Đã tạo/cập nhật đăng ký: groupId=${payment.groupId}, ngày hết hạn=${subscription.endDate}`);
-
-        // Lấy thông tin nhóm đã được cập nhật với ngày hết hạn mới
+        // Get updated group info with new expiration date
         const group = await groupService().findGroupById(payment.groupId);
         if (!group) {
-            throw new Error(`Không tìm thấy nhóm: ${payment.groupId}`);
+            throw new Error(`Group not found: ${payment.groupId}`);
         }
 
-        global.logger.info(`Thông tin nhóm sau khi cập nhật: isActive=${group.isActive}, expiresAt=${group.expiresAt}`);
-
-        // Gửi thông báo thành công
-        const notifyResult = await sendSuccessNotification(
+        // Send success notification
+        await sendSuccessNotification(
             payment.groupId,
             payment.packageType as PackageType,
             transactionId,
             group.expiresAt || new Date()
         );
 
-        global.logger.info(`Kết quả gửi thông báo: ${notifyResult ? 'Thành công' : 'Thất bại'}`);
-
+        global.logger.info(`Successfully processed payment for group ${payment.groupId} with package ${payment.packageType}`);
         return true;
     } catch (error) {
-        global.logger.error(`Lỗi xử lý thanh toán: ${error}`);
-        // Log chi tiết lỗi
-        if (error instanceof Error) {
-            global.logger.error(`Chi tiết lỗi: ${error.stack}`);
-        }
+        global.logger.error(`Error processing payment: ${error}`);
 
-        // Thử gửi thông báo lỗi tới nhóm
+        // Try to send error notification to the group
         try {
-            // Lấy lại thông tin thanh toán để có thể gửi thông báo
+            // Retrieve payment info to get groupId for notification
             const paymentRecord = await paymentService().findById(paymentId);
 
             if (paymentRecord && paymentRecord.groupId) {
@@ -161,10 +162,9 @@ export async function processSuccessfulPayment(
                     paymentRecord.groupId,
                     true
                 );
-                global.logger.info(`Đã gửi thông báo lỗi tới nhóm ${paymentRecord.groupId}`);
             }
         } catch (notifyError) {
-            global.logger.error(`Không thể gửi thông báo lỗi: ${notifyError}`);
+            global.logger.error(`Unable to send error notification: ${notifyError}`);
         }
 
         return false;
@@ -172,7 +172,7 @@ export async function processSuccessfulPayment(
 }
 
 /**
- * Checks for and deactivates expired groups
+ * Checks and deactivates expired groups
  */
 export async function checkExpiredGroups(): Promise<void> {
     try {
@@ -195,7 +195,7 @@ export async function checkExpiredGroups(): Promise<void> {
  */
 export async function sendExpirationReminders(daysBeforeExpiration: number = 3): Promise<void> {
     try {
-        // Get subscriptions that will expire soon
+        // Get subscriptions expiring soon
         const expiringSubscriptions = await subscriptionService().getSubscriptionsExpiringSoon(daysBeforeExpiration);
 
         if (expiringSubscriptions.length === 0) {
@@ -213,12 +213,12 @@ export async function sendExpirationReminders(daysBeforeExpiration: number = 3):
                     (1000 * 60 * 60 * 24)
                 );
 
-                const message = `⏰ EXPIRATION NOTICE\n\n` +
-                    `Your bot subscription will expire in ${daysLeft} days (${subscription.endDate.toLocaleString('vi-VN')}).\n\n` +
-                    `To continue using our service, please extend your subscription using the commands:\n` +
-                    `- Type /extend to see available packages\n` +
-                    `- Type /extend [package_name] to extend with a specific package\n\n` +
-                    `📢 Extend now to avoid service interruption!`;
+                const message = `⏰ THÔNG BÁO SẮP HẾT HẠN\n\n` +
+                    `Thời hạn sử dụng bot của nhóm sẽ hết hạn trong ${daysLeft} ngày (${subscription.endDate.toLocaleString('vi-VN')}).\n\n` +
+                    `Để tiếp tục sử dụng dịch vụ, vui lòng gia hạn bằng lệnh:\n` +
+                    `- Gõ /extend để xem các gói gia hạn\n` +
+                    `- Gõ /extend [tên_gói] để gia hạn với gói cụ thể\n\n` +
+                    `📢 Gia hạn ngay để không bị gián đoạn dịch vụ!`;
 
                 await sendTextMessage(message, subscription.groupId, true);
                 global.logger.info(`Sent expiration reminder to group: ${subscription.groupId}`);
@@ -241,3 +241,11 @@ export function getPackageInfo(packageType: string): Package | null {
 
     return SUBSCRIPTION_PACKAGES[packageType as PackageType];
 }
+
+export default {
+    initializeSubscription,
+    processSuccessfulPayment,
+    checkExpiredGroups,
+    sendExpirationReminders,
+    getPackageInfo
+};
