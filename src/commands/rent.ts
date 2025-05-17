@@ -5,6 +5,8 @@ import { formatRentMenu, formatPackageInfo } from '../utils/formatter';
 import { sendTextMessage, sendError } from '../utils/messageHelper';
 import { createPaymentLink, generateOrderCode } from '../services/payos';
 import global from '../global';
+import QRCode from 'qrcode';
+import path from "path";
 
 const rentCommand = {
     name: 'rent',
@@ -96,8 +98,8 @@ const rentCommand = {
                 // Create payment link with PayOS
                 const isExtend = group?.isActive ?? false;
                 const actionText = isExtend ? "Gia hạn bot" : "Thuê bot";
-                const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} ngày - Nhóm: ${group?.name || groupId}`;
-
+                const description = `${packageInfo.days} ngày - Nhóm: ${group?.name || groupId}`;
+                console.log(description);
                 const paymentLinkResponse = await createPaymentLink(
                     packageInfo.price,
                     orderCode,
@@ -118,9 +120,13 @@ const rentCommand = {
                 // Send QR code if available
                 if (paymentLinkResponse.data.qrCode && global.bot) {
                     try {
+                        const cacheDir = path.resolve(__dirname,'./cache');
+                        const qrImagePath = path.join(cacheDir, 'qrCode.png');
+                        await QRCode.toFile(qrImagePath, paymentLinkResponse.data.qrCode);
+
                         await global.bot.sendMessage({
                             msg: "Mã QR thanh toán PayOS:",
-                            // attachments: [paymentLinkResponse.data.qrCode]
+                            attachments: [path.resolve(qrImagePath)]
                         }, groupId, true);
                     } catch (qrError) {
                         global.logger.error(`Lỗi gửi mã QR: ${qrError}`);

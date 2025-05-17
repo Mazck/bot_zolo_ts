@@ -28,10 +28,6 @@ export function setupMessageListener() {
  */
 async function processMessage(message: any): Promise<void> {
     try {
-        // Skip self messages
-        if (message.isSelf) {
-            return;
-        }
 
         // Determine message type (group or personal)
         const isGroup = message.type === 1; // type 1 is for Group
@@ -97,15 +93,19 @@ async function updateUserFromMessage(userId: string, displayName: string): Promi
                 // Update additional user details
                 const user = await userService().findUserById(userId);
                 if (user) {
-                    user.username = profile.username || user.username;
-                    user.zaloName = profile.zaloName || user.zaloName;
-                    user.displayName = profile.displayName || user.displayName;
-                    user.avatar = profile.avatar || user.avatar;
-                    user.gender = profile.gender !== undefined ? profile.gender : user.gender;
-                    user.phoneNumber = profile.phoneNumber || user.phoneNumber;
-                    user.lastActive = new Date(profile.lastActionTime || Date.now());
+                    // Create an object with the updated properties
+                    const updatedData = {
+                        username: profile.username || user.username,
+                        zaloName: profile.zaloName || user.zaloName,
+                        displayName: profile.displayName || user.displayName,
+                        avatar: profile.avatar || user.avatar,
+                        gender: profile.gender !== undefined ? profile.gender : user.gender,
+                        phoneNumber: profile.phoneNumber || user.phoneNumber,
+                        lastActive: new Date(profile.lastActionTime || Date.now())
+                    };
 
-                    await userService().getRepository().save(user);
+                    // Use update method instead of directly accessing getRepository
+                    await userService().update(user.id, updatedData);
                     global.logger.debug(`Updated user details for ${profile.displayName} (${userId})`);
                 }
             } else {
@@ -147,12 +147,16 @@ async function updateGroupFromMessage(groupId: string, groupName: string): Promi
                 // Update additional group details
                 const group = await groupService().findGroupById(groupId);
                 if (group) {
-                    group.description = groupData.desc || group.description;
-                    group.avatar = groupData.avt || group.avatar;
-                    group.creatorId = groupData.creatorId || group.creatorId;
-                    group.adminIds = groupData.adminIds || group.adminIds;
+                    // Create an object with the updated properties
+                    const updatedData = {
+                        description: groupData.desc || group.description,
+                        avatar: groupData.avt || group.avatar,
+                        creatorId: groupData.creatorId || group.creatorId,
+                        adminIds: groupData.adminIds || group.adminIds
+                    };
 
-                    await groupService().getRepository().save(group);
+                    // Use update method instead of directly accessing getRepository
+                    await groupService().update(group.id, updatedData);
                     global.logger.debug(`Updated group details for ${groupData.name} (${groupId})`);
 
                     // Process group members if needed

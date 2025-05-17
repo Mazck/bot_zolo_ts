@@ -31,6 +31,7 @@ const helpCommand = {
 
     execute: async (params: CommandParams) => {
         const { args, groupId, isGroup, userId } = params;
+        console.log(isGroup)
         const targetId = isGroup ? groupId || userId : userId;
 
         // Nếu có tên lệnh được chỉ định, hiển thị thông tin chi tiết về lệnh đó

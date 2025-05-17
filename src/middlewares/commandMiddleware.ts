@@ -3,6 +3,7 @@ import { permissionCheck } from './permissionCheck';
 import { antiSpamCheck } from './antiSpam';
 import { sendTextMessage } from '../utils/messageHelper';
 import global from '../global';
+import { ANTI_SPAM_CONFIG } from '../config';
 
 /**
  * Middleware for processing commands
@@ -51,8 +52,10 @@ export async function commandMiddleware(
         if (isGroup && groupId) {
             const isActivated = await activationCheck(groupId);
             if (!isActivated) {
-                await sendRentInfo(groupId);
-                return;
+                if (!ANTI_SPAM_CONFIG.excludedCommands.includes(command.name)) {
+                    await sendRentInfo(groupId);
+                    return;
+                }
             }
         }
 

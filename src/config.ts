@@ -136,5 +136,5 @@ export const ANTI_SPAM_CONFIG = {
     maxCommands: parseInt(process.env.ANTI_SPAM_MAX_COMMANDS || '5'),
     timeWindow: parseInt(process.env.ANTI_SPAM_TIME_WINDOW || '10') * 1000, // milliseconds
     cooldownTime: parseInt(process.env.ANTI_SPAM_COOLDOWN || '60') * 1000, // milliseconds
-    excludedCommands: (process.env.ANTI_SPAM_EXCLUDED_COMMANDS || 'help,status').split(',')
+    excludedCommands: (process.env.ANTI_SPAM_EXCLUDED_COMMANDS || 'help,status,rent').split(',')
 };

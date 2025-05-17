@@ -215,8 +215,8 @@ export async function sendStyledMessage(
  */
 export async function sendAttachmentMessage(
     content: string,
-    threadId: string,
-    attachmentPaths: string[],
+    threadId: any,
+    attachmentPaths: any[],
     isGroup: boolean = false
 ): Promise<any> {
     if (!global.bot) return null;

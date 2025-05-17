@@ -51,8 +51,8 @@ export async function initializeSubscription(
         // Prepare payment description
         const isExtend = group.isActive;
         const actionText = isExtend ? "Extend bot" : "Rent bot";
-        const description = `${actionText} ZCA - ${packageInfo.name} - ${packageInfo.days} days - Group: ${group.name}`;
-
+        const description = `${packageInfo.days} days - Group: ${group.name}`;
+        console.log(description);
         // Create payment link via PayOS
         const paymentLinkResponse = await createPaymentLink(
             packageInfo.price,

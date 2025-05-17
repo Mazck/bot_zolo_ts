@@ -4,10 +4,10 @@
  */
 
 import helpCommand from './help';
-// import rentCommand from './rent';
-// import extendCommand from './extend';
-// import statusCommand from './status';
-// import groupinfoCommand from './groupinfo';
+import rentCommand from './rent';
+import extendCommand from './extend';
+//import statusCommand from './status';
+//import groupinfoCommand from './groupinfo';
 import global from '../global';
 import { Command } from '../types'; // Import the Command interface
 import { UserPermission } from '../config'; // Import UserPermission enum
@@ -24,11 +24,8 @@ export function registerCommands() {
     // Danh sách các lệnh
     const commands = [
         helpCommand,
-        // rentCommand,
-        // extendCommand,
-        // statusCommand,
-        // groupinfoCommand
-        // Thêm lệnh mới ở đây
+        rentCommand,
+        extendCommand,
     ];
 
     // Đăng ký từng lệnh

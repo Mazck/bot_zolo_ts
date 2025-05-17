@@ -40,8 +40,8 @@ export interface CommandParams {
 
 // ZaloJS related enums (for direct use in the code)
 export enum ThreadType {
-    User = 'User',
-    Group = 'Group'
+    User = 0,
+    Group = 1
 }
 
 export enum TextStyle {
