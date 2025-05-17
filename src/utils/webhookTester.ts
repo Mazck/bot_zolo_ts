@@ -8,7 +8,9 @@ import path from 'path';
 // Tải biến môi trường vì file này có thể được chạy trực tiếp
 dotenv.config();
 
-// Hàm tạo webhook payload mô phỏng
+/**
+ * Tạo webhook payload mô phỏng theo định dạng mới của PayOS
+ */
 export async function createTestWebhook() {
     try {
         // Đọc cấu hình từ môi trường
@@ -44,21 +46,38 @@ export async function createTestWebhook() {
         // Tạo mã đơn hàng ngẫu nhiên
         const orderCode = `TEST${Date.now()}`;
         const amount = 99000;
-        const timestamp = Date.now();
+        const timestamp = new Date().toISOString();
+        const transactionId = `TR${Date.now()}`;
 
-        // Tạo payload mô phỏng webhook từ PayOS
+        // Tạo payload mô phỏng webhook từ PayOS theo định dạng mới
         const payload = {
-            reference: `REF${timestamp}`,
+            transactionId: transactionId,
             orderCode: orderCode,
-            status: 1, // 1 = success
             amount: amount,
-            currency: 'VND',
             description: `Test payment for order ${orderCode}`,
-            transactionTime: new Date().toISOString(),
+            status: 'PAID', // PAID hoặc CANCELLED
+            cancellationReason: null,
+            checkoutUrl: `https://api-merchant.payos.vn/mobile/payurl-callback/${Date.now()}`,
+            paymentLinkId: `PL${Date.now()}`,
+            createdAt: timestamp,
             paymentMethod: "ZALOPAY",
-            buyerName: "Test User",
-            buyerEmail: "test@example.com",
-            buyerPhone: "0987654321"
+            customer: {
+                name: "Test User",
+                email: "test@example.com",
+                phone: "0987654321"
+            },
+            merchantId: clientId,
+            terminal: {
+                id: "TERMINAL01",
+                name: "Test Terminal"
+            },
+            bankReference: `BNK${Date.now()}`,
+            accountNumber: "9876543210",
+            accountName: "TEST USER",
+            cardHolderName: "TEST USER",
+            maskedPan: "498410******1234",
+            currency: "VND",
+            cardType: "ATM"
         };
 
         console.log('===== PAYLOAD =====');
@@ -114,7 +133,7 @@ export async function createTestWebhook() {
         console.log(`\nĐã lưu log test vào: ${logFile}`);
 
         return response.data;
-    } catch (error : any) {
+    } catch (error: any) {
         console.error('===== LỖI =====');
         if (error.code === 'ECONNREFUSED') {
             console.error(`Không thể kết nối đến webhook URL. URL không khả dụng hoặc bị chặn bởi tường lửa.`);
@@ -134,11 +153,4 @@ export async function createTestWebhook() {
         console.error(error.stack);
         return null;
     }
-}
-
-// Cho phép chạy trực tiếp từ command line
-if (require.main === module) {
-    createTestWebhook()
-        .then(() => console.log('\nTest webhook hoàn tất.'))
-        .catch(err => console.error('Lỗi không mong đợi:', err));
 }

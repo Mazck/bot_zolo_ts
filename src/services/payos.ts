@@ -114,12 +114,12 @@ export function processWebhookData(webhookData: any): PayOSWebhookResponse {
             throw new Error('Dữ liệu webhook không hợp lệ: không phải đối tượng JSON');
         }
 
-        // Kiểm tra các trường bắt buộc
+        // Kiểm tra các trường bắt buộc theo tài liệu PayOS
         if (!webhookData.orderCode) {
             throw new Error('Dữ liệu webhook thiếu trường orderCode');
         }
 
-        if (webhookData.status === undefined) {
+        if (!webhookData.status) {
             throw new Error('Dữ liệu webhook thiếu trường status');
         }
 
@@ -127,36 +127,37 @@ export function processWebhookData(webhookData: any): PayOSWebhookResponse {
             throw new Error('Dữ liệu webhook thiếu trường amount');
         }
 
-        // Thử xác minh chữ ký nếu có
-        const signature = webhookData.signature || '';
-
-        // Chuyển đổi định dạng dữ liệu cho tương thích với code cũ
+        // Chuyển đổi định dạng dữ liệu PayOS thành định dạng nội bộ
         const responseData: PayOSWebhookResponse = {
             code: '00',
             desc: 'success',
             data: {
-                reference: webhookData.reference || webhookData.transactionId || '',
+                reference: webhookData.transactionId || '',
                 orderCode: String(webhookData.orderCode),
-                status: webhookData.status,
+                status: webhookData.status === 'PAID' ? 1 : (webhookData.status === 'CANCELLED' ? 2 : 0),
                 amount: webhookData.amount,
                 currency: webhookData.currency || 'VND',
-                buyerName: webhookData.buyerName || '',
-                buyerEmail: webhookData.buyerEmail || '',
-                buyerPhone: webhookData.buyerPhone || '',
+                buyerName: webhookData.customer?.name || '',
+                buyerEmail: webhookData.customer?.email || '',
+                buyerPhone: webhookData.customer?.phone || '',
                 description: webhookData.description || '',
-                transactionTime: webhookData.transactionTime || webhookData.time || new Date().toISOString()
+                transactionTime: webhookData.createdAt || new Date().toISOString(),
+                paymentMethod: webhookData.paymentMethod || '',
+                cardNumber: webhookData.maskedPan || '',
+                cardType: webhookData.cardType || ''
             }
         };
 
         global.logger.debug(`Dữ liệu webhook đã xử lý: ${JSON.stringify(responseData)}`);
 
         return responseData;
-    } catch (error:any) {
+    } catch (error: any) {
         global.logger.error(`Lỗi xử lý dữ liệu webhook: ${error}`);
         global.logger.error(`Chi tiết dữ liệu: ${JSON.stringify(webhookData)}`);
         throw new Error(`Dữ liệu webhook không hợp lệ: ${error.message}`);
     }
 }
+
 
 /**
  * Xác minh webhook URL với PayOS
@@ -209,10 +210,29 @@ export function generateOrderCode(prefix: string = 'ZCABOT'): string {
 
 /**
  * Lấy mô tả trạng thái thanh toán PayOS
- * @param statusCode Mã trạng thái
+ * @param statusCode Mã trạng thái hoặc chuỗi trạng thái
  * @returns Mô tả trạng thái
  */
-export function getPaymentStatusDescription(statusCode: number): string {
+export function getPaymentStatusDescription(statusCode: number | string): string {
+    // Nếu là chuỗi trạng thái từ định dạng webhook mới
+    if (typeof statusCode === 'string') {
+        switch (statusCode) {
+            case 'PAID':
+                return 'Thanh toán thành công';
+            case 'CANCELLED':
+                return 'Thanh toán bị hủy';
+            case 'PROCESSING':
+                return 'Đang xử lý';
+            case 'FAILED':
+                return 'Thanh toán thất bại';
+            case 'EXPIRED':
+                return 'Thanh toán đã hết hạn';
+            default:
+                return 'Trạng thái không xác định';
+        }
+    }
+
+    // Nếu là mã số trạng thái (định dạng cũ)
     switch (statusCode) {
         case 0:
             return 'Chưa thanh toán';
