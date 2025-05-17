@@ -1,4 +1,4 @@
-# 🤖 ZCA Bot
+# 🤖 Zalo Bot
 
 ![Phiên bản](https://img.shields.io/badge/phiên%20bản-1.0.0-blue.svg)
 ![Giấy phép](https://img.shields.io/badge/giấy%20phép-MIT-green.svg)
