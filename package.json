@@ -18,7 +18,9 @@
         "typecheck": "tsc --noEmit",
         "typecheck:watch": "tsc --noEmit --watch",
         "build:safe": "npm run typecheck && npm run build",
-        "fix:unused": "tsc --noEmit --findUnusedParameters"
+        "fix:unused": "tsc --noEmit --findUnusedParameters",
+        "test-webhook": "ts-node src/utils/webhookTester.ts",
+        "system-check": "ts-node src/utils/systemCheck.ts"
     },
     "keywords": [
         "zalo",

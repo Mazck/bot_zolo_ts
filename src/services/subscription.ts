@@ -82,17 +82,14 @@ export async function initializeSubscription(
  * @param transactionId PayOS transaction ID
  * @returns True if processing was successful
  */
-/**
- * Xử lý thanh toán thành công
- * @param paymentId ID của payment
- * @param transactionId ID giao dịch PayOS
- * @returns True nếu xử lý thành công
- */
 export async function processSuccessfulPayment(
     paymentId: string,
     transactionId: string
 ): Promise<boolean> {
     try {
+        // Thêm log để theo dõi
+        global.logger.info(`Bắt đầu xử lý thanh toán thành công: ID=${paymentId}, Transaction=${transactionId}`);
+
         // Cập nhật trạng thái thanh toán
         const payment = await paymentService().updatePaymentStatus(
             paymentId,
@@ -104,11 +101,15 @@ export async function processSuccessfulPayment(
             throw new Error(`Không tìm thấy thanh toán: ${paymentId}`);
         }
 
+        global.logger.info(`Đã cập nhật trạng thái thanh toán: ${payment.id} -> completed`);
+
         // Lấy thông tin gói dịch vụ
         const packageInfo = SUBSCRIPTION_PACKAGES[payment.packageType as PackageType];
         if (!packageInfo) {
             throw new Error(`Không tìm thấy gói dịch vụ: ${payment.packageType}`);
         }
+
+        global.logger.info(`Gói dịch vụ: ${payment.packageType}, Thời hạn: ${packageInfo.days} ngày`);
 
         // Kích hoạt hoặc gia hạn đăng ký cho nhóm
         const subscription = await subscriptionService().createSubscription(
@@ -121,24 +122,33 @@ export async function processSuccessfulPayment(
             throw new Error(`Không thể tạo đăng ký cho nhóm: ${payment.groupId}`);
         }
 
+        global.logger.info(`Đã tạo/cập nhật đăng ký: groupId=${payment.groupId}, ngày hết hạn=${subscription.endDate}`);
+
         // Lấy thông tin nhóm đã được cập nhật với ngày hết hạn mới
         const group = await groupService().findGroupById(payment.groupId);
         if (!group) {
             throw new Error(`Không tìm thấy nhóm: ${payment.groupId}`);
         }
 
+        global.logger.info(`Thông tin nhóm sau khi cập nhật: isActive=${group.isActive}, expiresAt=${group.expiresAt}`);
+
         // Gửi thông báo thành công
-        await sendSuccessNotification(
+        const notifyResult = await sendSuccessNotification(
             payment.groupId,
             payment.packageType as PackageType,
             transactionId,
             group.expiresAt || new Date()
         );
 
-        global.logger.info(`Xử lý thanh toán thành công cho nhóm ${payment.groupId} với gói ${payment.packageType}`);
+        global.logger.info(`Kết quả gửi thông báo: ${notifyResult ? 'Thành công' : 'Thất bại'}`);
+
         return true;
     } catch (error) {
         global.logger.error(`Lỗi xử lý thanh toán: ${error}`);
+        // Log chi tiết lỗi
+        if (error instanceof Error) {
+            global.logger.error(`Chi tiết lỗi: ${error.stack}`);
+        }
 
         // Thử gửi thông báo lỗi tới nhóm
         try {
@@ -151,6 +161,7 @@ export async function processSuccessfulPayment(
                     paymentRecord.groupId,
                     true
                 );
+                global.logger.info(`Đã gửi thông báo lỗi tới nhóm ${paymentRecord.groupId}`);
             }
         } catch (notifyError) {
             global.logger.error(`Không thể gửi thông báo lỗi: ${notifyError}`);
@@ -159,6 +170,7 @@ export async function processSuccessfulPayment(
         return false;
     }
 }
+
 /**
  * Checks for and deactivates expired groups
  */

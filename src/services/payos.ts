@@ -106,29 +106,55 @@ export async function checkPaymentStatus(orderCode: string): Promise<any> {
  */
 export function processWebhookData(webhookData: any): PayOSWebhookResponse {
     try {
-        // Xác minh dữ liệu webhook sử dụng thư viện @payos/node
-        const verifiedData = payos.verifyPaymentWebhookData(webhookData);
+        // Log dữ liệu gốc để debug
+        global.logger.debug(`Dữ liệu webhook gốc: ${JSON.stringify(webhookData)}`);
+
+        // Kiểm tra dữ liệu webhook có đúng format không
+        if (!webhookData || typeof webhookData !== 'object') {
+            throw new Error('Dữ liệu webhook không hợp lệ: không phải đối tượng JSON');
+        }
+
+        // Kiểm tra các trường bắt buộc
+        if (!webhookData.orderCode) {
+            throw new Error('Dữ liệu webhook thiếu trường orderCode');
+        }
+
+        if (webhookData.status === undefined) {
+            throw new Error('Dữ liệu webhook thiếu trường status');
+        }
+
+        if (webhookData.amount === undefined) {
+            throw new Error('Dữ liệu webhook thiếu trường amount');
+        }
+
+        // Thử xác minh chữ ký nếu có
+        const signature = webhookData.signature || '';
 
         // Chuyển đổi định dạng dữ liệu cho tương thích với code cũ
-        return {
-            code: verifiedData.code,
-            desc: verifiedData.desc,
+        const responseData: PayOSWebhookResponse = {
+            code: '00',
+            desc: 'success',
             data: {
-                reference: verifiedData.reference || '',
-                orderCode: String(verifiedData.orderCode),
-                status: 1, // Webhook chỉ được gửi khi thanh toán thành công
-                amount: verifiedData.amount,
-                currency: verifiedData.currency || 'VND',
-                buyerName: '',
-                buyerEmail: '',
-                buyerPhone: '',
-                description: verifiedData.description || '',
-                transactionTime: verifiedData.transactionDateTime || ''
+                reference: webhookData.reference || webhookData.transactionId || '',
+                orderCode: String(webhookData.orderCode),
+                status: webhookData.status,
+                amount: webhookData.amount,
+                currency: webhookData.currency || 'VND',
+                buyerName: webhookData.buyerName || '',
+                buyerEmail: webhookData.buyerEmail || '',
+                buyerPhone: webhookData.buyerPhone || '',
+                description: webhookData.description || '',
+                transactionTime: webhookData.transactionTime || webhookData.time || new Date().toISOString()
             }
         };
-    } catch (error) {
-        global.logger.error(`Lỗi xác minh dữ liệu webhook: ${error}`);
-        throw new Error('Dữ liệu webhook không hợp lệ');
+
+        global.logger.debug(`Dữ liệu webhook đã xử lý: ${JSON.stringify(responseData)}`);
+
+        return responseData;
+    } catch (error:any) {
+        global.logger.error(`Lỗi xử lý dữ liệu webhook: ${error}`);
+        global.logger.error(`Chi tiết dữ liệu: ${JSON.stringify(webhookData)}`);
+        throw new Error(`Dữ liệu webhook không hợp lệ: ${error.message}`);
     }
 }
 

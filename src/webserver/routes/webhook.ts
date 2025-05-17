@@ -13,23 +13,65 @@ import global from '../../global';
 export function setupPayOSWebhook(app: Express) {
   const router = Router();
 
+  // Endpoint để kiểm tra webhook
+  router.get('/payos/check', (req: Request, res: Response) => {
+    try {
+      // Kiểm tra cấu hình
+      const { clientId, apiKey, checksumKey, webhookUrl } = PAYOS_CONFIG;
+
+      // Trả về thông tin cấu hình (không bao gồm giá trị thực tế của các key)
+      res.status(200).json({
+        status: 'ok',
+        message: 'Webhook route hoạt động',
+        config: {
+          hasClientId: !!clientId,
+          hasApiKey: !!apiKey,
+          hasChecksumKey: !!checksumKey,
+          webhookUrl: webhookUrl || 'Chưa cấu hình'
+        }
+      });
+    } catch (error:any) {
+      global.logger.error(`Lỗi kiểm tra webhook: ${error}`);
+      res.status(500).json({
+        status: 'error',
+        message: 'Lỗi kiểm tra webhook',
+        error: error.message
+      });
+    }
+  });
+
   // Endpoint xử lý webhook từ PayOS
+  //ts-ignore
   // @ts-ignore
   router.post('/payos', async (req: Request, res: Response) => {
     try {
-      global.logger.info('Nhận webhook từ PayOS');
-      global.logger.debug(`Webhook body: ${JSON.stringify(req.body)}`);
+      const startTime = Date.now();
+      global.logger.info('===== WEBHOOK PAYOS =====');
+      global.logger.info(`Thời gian: ${new Date().toISOString()}`);
+      global.logger.info(`IP: ${req.ip}`);
+      global.logger.info(`Headers: ${JSON.stringify(req.headers)}`);
+
+      // Kiểm tra dữ liệu webhook
+      if (!req.body || Object.keys(req.body).length === 0) {
+        global.logger.error('Nhận webhook với body rỗng');
+        return res.status(400).json({
+          success: false,
+          message: 'Dữ liệu webhook trống'
+        });
+      }
+
+      global.logger.info(`Body: ${JSON.stringify(req.body)}`);
 
       // Xác minh và xử lý dữ liệu webhook
       try {
         // Truy xuất và xác minh dữ liệu webhook
         const webhookData = processWebhookData(req.body);
 
-        global.logger.info(`Webhook PayOS - Order: ${webhookData.data.orderCode}, Status: ${webhookData.data.status} (${getPaymentStatusDescription(webhookData.data.status)})`);
+        global.logger.info(`Webhook đã xác minh: orderId=${webhookData.data.orderCode}, trạng thái=${webhookData.data.status}`);
 
         // Kiểm tra trạng thái thanh toán
         if (webhookData.data.status === 1) { // 1 = Thành công
-          global.logger.info(`Nhận webhook thanh toán thành công: ${webhookData.data.orderCode}`);
+          global.logger.info(`Xử lý thanh toán thành công cho đơn hàng: ${webhookData.data.orderCode}`);
 
           // Tìm payment trong database
           const payment = await paymentService().findPaymentByOrderCode(webhookData.data.orderCode);
@@ -39,6 +81,15 @@ export function setupPayOSWebhook(app: Express) {
             return res.status(200).json({
               success: false,
               message: 'Không tìm thấy thanh toán, nhưng đã nhận webhook'
+            });
+          }
+
+          // Kiểm tra nếu payment đã xử lý rồi
+          if (payment.status === 'completed') {
+            global.logger.info(`Đơn hàng ${webhookData.data.orderCode} đã được xử lý trước đó`);
+            return res.status(200).json({
+              success: true,
+              message: 'Đơn hàng đã được xử lý trước đó'
             });
           }
 
@@ -53,12 +104,25 @@ export function setupPayOSWebhook(app: Express) {
           } else {
             global.logger.error(`Xử lý thanh toán thất bại mặc dù đã nhận webhook: ${payment.id}`);
           }
+
+          const processingTime = Date.now() - startTime;
+          global.logger.info(`Thời gian xử lý webhook: ${processingTime}ms`);
+
+          // Trả về thành công
+          return res.status(200).json({
+            success: true,
+            message: 'Xử lý thanh toán thành công',
+            processing_time: processingTime
+          });
         } else {
           global.logger.info(`Nhận webhook với trạng thái: ${webhookData.data.status} (${getPaymentStatusDescription(webhookData.data.status)})`);
-        }
 
-        // Trả về thành công - PayOS cần phản hồi 200 ngay cả khi xử lý thất bại
-        return res.status(200).json({ success: true });
+          // Trả về thành công - PayOS cần phản hồi 200 ngay cả khi chưa xử lý
+          return res.status(200).json({
+            success: true,
+            message: `Đã nhận webhook với trạng thái: ${getPaymentStatusDescription(webhookData.data.status)}`
+          });
+        }
       } catch (verifyError) {
         global.logger.error(`Lỗi xác minh dữ liệu webhook: ${verifyError}`);
         // Vẫn trả về 200 để PayOS không gửi lại webhook
